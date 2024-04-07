@@ -1,0 +1,81 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "UVEXEC_ENABLE_TESTS": "ON",
+        "UVEXEC_ENABLE_EXAMPLES": "ON",
+        "UVEXEC_ENABLE_SANDBOX": "ON"
+      }
+    },
+    {
+      "name": "dev-debug-unix",
+      "inherits": "dev",
+      "displayName": "Developers debug config",
+      "description": "Default debug build using Ninja generator",
+      "generator": "Ninja",
+      "binaryDir": "build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+      }
+    },
+    {
+      "name": "dev-ubsan",
+      "inherits": "dev-debug-unix",
+      "displayName": "Config with UBSan",
+      "description": "Build with UB sanitizer",
+      "binaryDir": "build-ubsan",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_SANITIZERS": "ON",
+        "UVEXEC_SANITIZE": "-fsanitize=undefined"
+      }
+    },
+    {
+      "name": "dev-asan",
+      "inherits": "dev-debug-unix",
+      "displayName": "Config with ASan",
+      "description": "Build with Address sanitizer",
+      "binaryDir": "build-asan",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_SANITIZERS": "ON",
+        "UVEXEC_SANITIZE": "-fsanitize=address"
+      }
+    },
+    {
+      "name": "dev-tsan",
+      "inherits": "dev-debug-unix",
+      "displayName": "Config with TSan",
+      "description": "Build with Thread sanitizer",
+      "binaryDir": "build-tsan",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_SANITIZERS": "ON",
+        "UVEXEC_SANITIZE": "-fsanitize=thread"
+      }
+    },
+    {
+      "name": "dev-release-unix",
+      "inherits": "dev",
+      "displayName": "Developers release config",
+      "description": "Default relwithdebinfo build using Ninja generator",
+      "generator": "Ninja",
+      "binaryDir": "build-relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release config",
+      "description": "Default release build for users",
+      "binaryDir": "build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ]
+}
