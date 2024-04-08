@@ -33,6 +33,14 @@
 
 namespace NUvExec {
 
+namespace NDetail {
+
+template <typename TReceiver, typename TStopCallback>
+using TCallbackOf = typename stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::
+        template callback_type<TStopCallback>;
+
+}
+
 class TLoop {
     struct TTimer {
         TTimer() = default;
@@ -48,6 +56,7 @@ class TLoop {
         uv_signal_t UvSignal;
     };
 
+public:
     struct TRunner : TIntrusiveListNode<TRunner> {
         std::atomic_uint64_t Awakenings{1};
         bool Acquired{false};
@@ -70,6 +79,16 @@ public:
         virtual void Apply() noexcept = 0;
 
         std::atomic<TOpState*> Next{nullptr};
+    };
+
+    class TOpStateList {
+    public:
+        TOpStateList() noexcept;
+        void PushBack(TOpState& op) noexcept;
+        auto Grab() noexcept -> TOpState*;
+
+    private:
+        std::atomic<TOpState*> Head;
     };
 
     template <stdexec::receiver_of<TScheduleCompletionSignatures> TReceiver>
@@ -114,7 +133,6 @@ public:
             op.Loop->Schedule(op);
         }
 
-    private:
         void Apply() noexcept override {
             Timer.Init(*Loop);
             Timer.UvTimer.data = this;
@@ -134,6 +152,7 @@ public:
             }
         }
 
+    private:
         void Stop() noexcept {
             if (!Used.test_and_set()) {
                 Loop->Schedule(StopOp);
@@ -177,7 +196,7 @@ public:
             TTimedScheduleOpState* State;
         };
 
-        using TCallback = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::template callback_type<TStopCallback>;
+        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
     private:
         TTimer Timer;
@@ -200,7 +219,6 @@ public:
             op.Loop->Schedule(op);
         }
 
-    private:
         void Apply() noexcept override {
             Signal.Init(*Loop);
             Signal.UvSignal.data = this;
@@ -212,6 +230,7 @@ public:
             }
         }
 
+    private:
         void Stop() noexcept {
             if (!Used.test_and_set()) {
                 Loop->Schedule(StopOp);
@@ -255,7 +274,7 @@ public:
             TSignalScheduleOpState* State;
         };
 
-        using TCallback = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::template callback_type<TStopCallback>;
+        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
     private:
         TSignal Signal;
@@ -408,6 +427,8 @@ public:
     auto drain() -> bool;
 
     void Schedule(TOpState& op) noexcept;
+    void RunnerSteal(TRunner& runner);
+    void Stop() noexcept;
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TLoop& loop) noexcept -> uv_loop_t&;
     friend auto tag_invoke(NUvUtil::TRawUvObject, const TLoop& loop) noexcept -> const uv_loop_t&;
@@ -415,21 +436,7 @@ public:
 private:
     void Walk(uv_walk_cb cb, void* arg);
 
-    void RunnerSteal(TRunner& runner);
-
-    void Stop() noexcept;
-
     static void ApplyOpStates(uv_async_t* async);
-
-    class TOpStateList {
-    public:
-        TOpStateList() noexcept;
-        void PushBack(TOpState& op) noexcept;
-        auto Grab() noexcept -> TOpState*;
-
-    private:
-        std::atomic<TOpState*> Head;
-    };
 
 private:
     uv_loop_t UvLoop;

@@ -24,18 +24,24 @@ namespace NUvExec {
 
 namespace NDetail {
 
-template <typename TRet, typename TArg>
-constexpr auto AsyncValueTypeImpl(std::function<TRet(TArg&)>) -> TArg;
+struct TAsyncValueTypeImpl{
+    template <typename TRet, typename TArg>
+    constexpr auto operator()(TRet(*)(TArg)) -> TArg;
+
+    template <typename TFn>
+    constexpr auto operator()(TFn) -> NMeta::TMethodArgType<decltype(&TFn::operator())>;
+};
 
 template <typename TFn>
-using TAsyncValueType = decltype(AsyncValueTypeImpl(std::function(std::declval<TFn>())));
+using TAsyncValueType = std::invoke_result_t<TAsyncValueTypeImpl, TFn>;
 
 }
 
 template <stdexec::sender TInSender, std::move_constructible TFun, stdexec::receiver TReceiver>
-    requires stdexec::sender<std::invoke_result_t<TFun, NDetail::TAsyncValueType<TFun>&>>
+    requires std::is_lvalue_reference_v<NDetail::TAsyncValueType<TFun>> &&
+            stdexec::sender<std::invoke_result_t<TFun, NDetail::TAsyncValueType<TFun>>>
 class TAsyncValueOpState {
-    using TValue = NDetail::TAsyncValueType<TFun>;
+    using TValue = std::remove_reference_t<NDetail::TAsyncValueType<TFun>>;
 
     static constexpr bool IsValueStopSource = requires(TValue& val) { val.request_stop(); };
     
@@ -108,7 +114,8 @@ private:
         TAsyncValueOpState* State;
     };
 
-    using TCallback = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::template callback_type<TStopCallback>;
+    using TCallback = typename stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::
+            template callback_type<TStopCallback>;
 
 private:
     std::variant<TInOpState, TOutOpState> OpState;

@@ -26,6 +26,7 @@
 #include <iostream>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <vector>
 
 using namespace NUvExec;
 using namespace std::literals;

@@ -18,8 +18,7 @@
 #include "completion_signatures.hpp"
 
 #include <uvexec/uv_util/reqs.hpp>
-
-#include <span>
+#include <uvexec/uv_util/misc.hpp>
 
 
 namespace NUvExec {

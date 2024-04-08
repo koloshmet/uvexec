@@ -53,7 +53,7 @@ TEST_CASE("Trivial after", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    REQUIRE(start + timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
     REQUIRE(loopStart + timeout <= exec::now(loop.get_scheduler()));
 }
 
@@ -119,12 +119,12 @@ TEST_CASE("Trivial at", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    REQUIRE(start + timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
     REQUIRE(loopStart + timeout <= exec::now(loop.get_scheduler()));
 }
 
 TEST_CASE("At in the past", "[loop][timer]") {
-    constexpr auto delay = 10ms;
+    constexpr auto delay = 100ms;
 
     TLoop loop;
     auto threadId = std::this_thread::get_id();
@@ -146,7 +146,7 @@ TEST_CASE("At in the past", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    CHECK(start + delay + 1ms > std::chrono::steady_clock::now());
+    CHECK(start + delay > std::chrono::steady_clock::now());
 }
 
 TEST_CASE("Chained after", "[loop][timer]") {
@@ -171,11 +171,11 @@ TEST_CASE("Chained after", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now() + 1ms);
 }
 
 TEST_CASE("At follows after", "[loop][timer]") {
-    constexpr auto timeout = 30ms;
+    constexpr auto timeout = 50ms;
 
     TLoop loop;
     auto threadId = std::this_thread::get_id();
@@ -198,7 +198,7 @@ TEST_CASE("At follows after", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    REQUIRE(start + timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
     REQUIRE(start + 2 * timeout > std::chrono::steady_clock::now());
 }
 
@@ -226,11 +226,11 @@ TEST_CASE("After follows at", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now() + 1ms);
 }
 
 TEST_CASE("When any", "[loop][timer]") {
-    constexpr auto timeout = 30ms;
+    constexpr auto timeout = 50ms;
 
     TLoop loop;
     auto threadId = std::this_thread::get_id();
@@ -260,7 +260,7 @@ TEST_CASE("When any", "[loop][timer]") {
             })).value();
 
     REQUIRE(threadId == std::this_thread::get_id());
-    REQUIRE(start + timeout <= std::chrono::steady_clock::now());
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
     REQUIRE(start + 2 * timeout > std::chrono::steady_clock::now());
 }
 

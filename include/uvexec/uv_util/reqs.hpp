@@ -20,6 +20,7 @@
 #include <uv.h>
 
 #include <span>
+#include <cstdint>
 
 
 namespace NUvUtil {

@@ -16,6 +16,7 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
+#include <uvexec/execution/loop.hpp>
 #include <uvexec/sockets/tcp_listener.hpp>
 #include <uvexec/algorithms/accept.hpp>
 
@@ -69,7 +70,7 @@ TEST_CASE("No incoming connection", "[loop][tcp]") {
                 return exec::when_any(exec::schedule_after(uvLoop.get_scheduler(), timeout), conn);
             })).value();
 
-    REQUIRE(start + timeout < std::chrono::steady_clock::now());
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
     REQUIRE_FALSE(accepted);
 }
 

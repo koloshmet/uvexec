@@ -96,7 +96,7 @@ public:
         TReceiveOpState* State;
     };
 
-    using TCallback = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::template callback_type<TStopCallback>;
+    using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
 private:
     static void ReadCallback(uv_stream_t* tcp, std::ptrdiff_t nrd, const uv_buf_t*) {

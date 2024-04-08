@@ -110,7 +110,7 @@ public:
             TAcceptOpState* State;
         };
 
-        using TCallback = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>::template callback_type<TStopCallback>;
+        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
     private:
         TOpState Op;
@@ -136,9 +136,10 @@ public:
     friend auto tag_invoke(NUvUtil::TRawUvObject, TTcpListener& listener) noexcept -> uv_tcp_t&;
 
     template <stdexec::sender TSender>
-    friend auto tag_invoke(uvexec::close_t, TSender&& s, TTcpListener& listener) noexcept(
-            std::is_nothrow_invocable_v<uvexec::close_t, TSender&&, TTcpSocket&>) {
-        return uvexec::close(std::forward<TSender>(s), listener.Socket);
+    friend auto tag_invoke(
+            TLoop::TDomain, TSenderPackage<uvexec::close_t, TSender, std::tuple<TTcpListener&>>&& s) noexcept(
+            std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
+        return TCloseSender<std::decay_t<TSender>, TTcpSocket>(std::move(s.Sender), std::get<0>(s.Data).Socket);
     }
 
     auto Loop() noexcept -> TLoop&;

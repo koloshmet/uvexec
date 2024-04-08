@@ -76,7 +76,7 @@ struct TSenderPackageBase {
         } else {
             return stdexec::completion_signatures<>{};
         }
-    };
+    }
 
     TSender Sender;
     TTupleOfData Data;
