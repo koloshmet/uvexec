@@ -99,7 +99,7 @@ TEST_CASE("High concurrent schedule", "[loop]") {
         ++executed[i];
     });
 
-    REQUIRE(std::ranges::all_of(executed, [](int i) noexcept { return i == 0; }));
+    REQUIRE(std::all_of(executed.begin(), executed.end(), [](int i) noexcept { return i == 0; }));
 
     exec::async_scope root;
     stdexec::sync_wait(
@@ -111,7 +111,7 @@ TEST_CASE("High concurrent schedule", "[loop]") {
                 return root.on_empty();
             }));
 
-    REQUIRE(std::ranges::all_of(executed, [](int i) noexcept { return i == 1; }));
+    REQUIRE(std::all_of(executed.begin(), executed.end(), [](int i) noexcept { return i == 1; }));
 }
 
 TEST_CASE("Cancelled before progress", "[loop]") {
