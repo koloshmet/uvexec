@@ -1,7 +1,7 @@
 add_library(echo_uv echo_uv.c)
 target_compile_features(echo_uv PUBLIC c_std_11)
 target_compile_options(echo_uv PRIVATE ${UVEXEC_WARNINGS})
-target_link_libraries(echo_uv PRIVATE uv)
+target_link_libraries(echo_uv PRIVATE uvexec_uv)
 
 CPMAddPackage("gh:fmtlib/fmt#10.2.1")
 

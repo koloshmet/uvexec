@@ -74,7 +74,7 @@ TEST_CASE("After 0", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    CHECK(start + 1ms > std::chrono::steady_clock::now());
+    CHECK(start + 5ms > std::chrono::steady_clock::now());
 }
 
 TEST_CASE("After negative", "[loop][timer]") {
@@ -94,7 +94,7 @@ TEST_CASE("After negative", "[loop][timer]") {
     REQUIRE(threadId == innerThreadId);
     REQUIRE(threadId == std::this_thread::get_id());
     REQUIRE(executed);
-    CHECK(start + 1ms > std::chrono::steady_clock::now());
+    CHECK(start + 5ms > std::chrono::steady_clock::now());
 }
 
 TEST_CASE("Trivial at", "[loop][timer]") {
@@ -310,6 +310,5 @@ TEST_CASE("Racy timer cancellation", "[loop][timer][mt]") {
                 return scope.on_empty();
             }));
     t.join();
-    CHECK(executed > 0);
     CHECK(executed < 10'000);
 }

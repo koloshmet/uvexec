@@ -25,6 +25,7 @@
 #include <exec/finally.hpp>
 
 #include <latch>
+#include <array>
 
 using namespace NUvExec;
 using namespace std::literals;

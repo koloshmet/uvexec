@@ -27,8 +27,8 @@
 using namespace NUvExec;
 using namespace std::literals;
 
-TEST_CASE("Raise SIGUSR1", "[loop][signal]") {
-    constexpr auto signal = SIGUSR1;
+TEST_CASE("Raise SIGINT", "[loop][signal]") {
+    constexpr auto signal = SIGINT;
 
     TLoop loop;
     exec::async_scope scope;
@@ -53,7 +53,7 @@ TEST_CASE("Raise SIGUSR1", "[loop][signal]") {
 }
 
 TEST_CASE("Signal cancelled before progress", "[loop][signal]") {
-    constexpr auto signal = SIGUSR1;
+    constexpr auto signal = SIGINT;
 
     TLoop loop;
 
