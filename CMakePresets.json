@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 3,
   "configurePresets": [
     {
       "name": "dev",
@@ -12,15 +12,51 @@
       }
     },
     {
-      "name": "dev-debug-unix",
+      "name": "dev-unix",
       "inherits": "dev",
+      "hidden": true,
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+      }
+    },
+    {
+      "name": "dev-win",
+      "inherits": "dev",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "UVEXEC_WARNINGS": "/W4",
+        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN"
+      }
+    },
+    {
+      "name": "dev-debug-unix",
+      "inherits": "dev-unix",
       "displayName": "Developers debug config",
-      "description": "Default debug build using Ninja generator",
-      "generator": "Ninja",
+      "description": "Default debug build",
       "binaryDir": "build-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "dev-debug-clang",
+      "inherits": "dev-debug-unix",
+      "displayName": "Developers debug config using clang",
+      "description": "Debug build with clang and libc++",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++"
       }
     },
     {
@@ -58,24 +94,170 @@
     },
     {
       "name": "dev-release-unix",
-      "inherits": "dev",
+      "inherits": "dev-unix",
       "displayName": "Developers release config",
-      "description": "Default relwithdebinfo build using Ninja generator",
-      "generator": "Ninja",
+      "description": "Default relwithdebinfo build",
       "binaryDir": "build-relwithdebinfo",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "dev-debug-win",
+      "inherits": "dev-win",
+      "displayName": "Developers debug config for windows",
+      "description": "Default debug build using msvc",
+      "binaryDir": "build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "dev-release-win",
+      "inherits": "dev-win",
+      "displayName": "Developers release config for windows",
+      "description": "Default relwithdebinfo build using msvc",
+      "binaryDir": "build-relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "ci-debug-unix",
+      "inherits": "dev-debug-unix",
+      "displayName": "CI debug config",
+      "description": "CI debug build",
+      "binaryDir": "build-ci",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_EXAMPLES": "OFF",
+        "UVEXEC_ENABLE_SANDBOX": "OFF",
+        "UVEXEC_ENABLE_SANITIZERS": "ON",
+        "UVEXEC_SANITIZE": "-fsanitize=undefined"
+      }
+    },
+    {
+      "name": "ci-debug-clang",
+      "inherits": "dev-debug-clang",
+      "displayName": "CI debug config using clang",
+      "description": "CI debug build with clang and libc++",
+      "binaryDir": "build-ci",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_EXAMPLES": "OFF",
+        "UVEXEC_ENABLE_SANDBOX": "OFF",
+        "UVEXEC_ENABLE_SANITIZERS": "ON",
+        "UVEXEC_SANITIZE": "-fsanitize=undefined"
+      }
+    },
+    {
+      "name": "ci-debug-win",
+      "inherits": "dev-debug-win",
+      "displayName": "CI debug config for windows",
+      "description": "CI debug build using msvc",
+      "binaryDir": "build-ci",
+      "cacheVariables": {
+        "UVEXEC_ENABLE_EXAMPLES": "OFF",
+        "UVEXEC_ENABLE_SANDBOX": "OFF"
       }
     },
     {
       "name": "release",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "displayName": "Release config",
       "description": "Default release build for users",
       "binaryDir": "build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "release-win",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "displayName": "Release config for windows",
+      "description": "Default release build for windows users",
+      "binaryDir": "build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev-debug-unix",
+      "configurePreset": "dev-debug-unix",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dev-debug-clang",
+      "configurePreset": "dev-debug-clang",
+      "configuration": "Debug"
+    },
+    {
+      "name": "dev-debug-win",
+      "configurePreset": "dev-debug-win",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ci-debug-unix",
+      "configurePreset": "ci-debug-unix",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ci-debug-clang",
+      "configurePreset": "ci-debug-clang",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ci-debug-win",
+      "configurePreset": "ci-debug-win",
+      "configuration": "Debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "hidden": true,
+      "configuration": "Debug",
+      "output": {"outputOnFailure": true},
+      "execution": {"noTestsAction": "error", "stopOnFailure": true}
+    },
+    {
+      "name": "dev-debug-unix",
+      "inherits": "debug",
+      "configurePreset": "dev-debug-unix"
+    },
+    {
+      "name": "dev-debug-clang",
+      "inherits": "debug",
+      "configurePreset": "dev-debug-clang"
+    },
+    {
+      "name": "dev-debug-win",
+      "inherits": "debug",
+      "configurePreset": "dev-debug-win"
+    },
+    {
+      "name": "ci-debug-unix",
+      "inherits": "debug",
+      "configurePreset": "ci-debug-unix"
+    },
+    {
+      "name": "ci-debug-clang",
+      "inherits": "debug",
+      "configurePreset": "ci-debug-clang"
+    },
+    {
+      "name": "ci-debug-win",
+      "inherits": "debug",
+      "configurePreset": "ci-debug-win"
     }
   ]
 }

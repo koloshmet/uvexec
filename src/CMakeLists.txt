@@ -23,5 +23,6 @@ add_library(uvexec_impl
 )
 target_compile_features(uvexec_impl PRIVATE cxx_std_20)
 target_compile_options(uvexec_impl PRIVATE ${UVEXEC_WARNINGS})
+target_compile_definitions(uvexec_impl PUBLIC ${UVEXEC_DEFINITIONS})
 target_include_directories(uvexec_impl PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(uvexec_impl PUBLIC STDEXEC::stdexec uvexec_safe_uv)

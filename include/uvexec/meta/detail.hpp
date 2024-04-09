@@ -23,23 +23,41 @@ namespace NMeta::NDetail {
 template <typename>
 struct TMethodArg{};
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg)> { using TType = TArg; };
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) & noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) &> { using TType = TArg; };
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) && noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) &&> { using TType = TArg; };
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) const noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const> { using TType = TArg; };
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) const& noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const&> { using TType = TArg; };
 
-template <typename TRes, typename TFn, bool Nx, typename TArg>
-struct TMethodArg<TRes(TFn::*)(TArg) const&& noexcept(Nx)> { using TType = TArg; };
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const&&> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) noexcept> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) & noexcept> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) && noexcept> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const noexcept> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const& noexcept> { using TType = TArg; };
+
+template <typename TRes, typename TFn, typename TArg>
+struct TMethodArg<TRes(TFn::*)(TArg) const&& noexcept> { using TType = TArg; };
 
 template <typename T, template <typename...> typename TCont, typename... Ts>
 auto BindFront(TDeduce<T>, TDeduce<TCont<Ts...>>) -> TCont<T, Ts...>;

@@ -7,7 +7,8 @@ include(cmake/CPM.cmake)
 set(UVEXEC_UV_VERSION 1.47.0 CACHE STRING "Version of libuv to use")
 set(UVEXEC_STDEXEC_VERSION 950dd0e CACHE STRING "Version of stdexec to use")
 
-set(UVEXEC_WARNINGS "" CACHE STRING "Warnings in format appropriate for compiler")
+set(UVEXEC_WARNINGS "" CACHE STRING "Warnings for uvexec targets in format appropriate for compiler")
+set(UVEXEC_DEFINITIONS "" CACHE STRING "Additional compile definitions for uvexec targets")
 
 option(UVEXEC_ENABLE_SANITIZERS "Enable sanitizers for all targets" OFF)
 if (UVEXEC_ENABLE_SANITIZERS)
@@ -33,6 +34,7 @@ if (UVEXEC_ENABLE_TESTS OR UVEXEC_ENABLE_EXAMPLES)
 endif ()
 
 if (UVEXEC_ENABLE_TESTS AND BUILD_TESTING)
+    enable_testing()
     add_subdirectory(tests)
 endif ()
 if (UVEXEC_ENABLE_EXAMPLES)
