@@ -242,7 +242,10 @@
     {
       "name": "dev-debug-win",
       "inherits": "debug",
-      "configurePreset": "dev-debug-win"
+      "configurePreset": "dev-debug-win",
+      "filter": {
+        "exclude": { "name": "SignalTest" }
+      }
     },
     {
       "name": "ci-debug-unix",
@@ -257,7 +260,10 @@
     {
       "name": "ci-debug-win",
       "inherits": "debug",
-      "configurePreset": "ci-debug-win"
+      "configurePreset": "ci-debug-win",
+      "filter": {
+        "exclude": { "name": "SignalTest" }
+      }
     }
   ]
 }

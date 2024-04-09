@@ -5,12 +5,19 @@ CPMAddPackage(
 )
 CPMAddPackage("gh:libuv/libuv@${UVEXEC_UV_VERSION}")
 
+if(BUILD_SHARED_LIBS)
+    set(UV_LIB_GENERIC uv)
+else()
+    set(UV_LIB_GENERIC uv_a)
+endif()
+add_library(uvexec_uv ALIAS ${UV_LIB_GENERIC})
+
 add_library(uvexec_safe_uv
         uv_util/safe_uv.c
 )
 target_compile_features(uvexec_safe_uv PRIVATE c_std_11)
 target_compile_options(uvexec_safe_uv PRIVATE ${UVEXEC_WARNINGS})
-target_link_libraries(uvexec_safe_uv PUBLIC uv)
+target_link_libraries(uvexec_safe_uv PUBLIC uvexec_uv)
 
 add_library(uvexec_impl
         execution/loop.cpp
