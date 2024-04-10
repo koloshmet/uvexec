@@ -17,7 +17,7 @@
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
 #include <catch2/catch.hpp>
 
-#include <uvexec/execution/loop.hpp>
+#include <uvexec/uvexec.hpp>
 
 #include <exec/single_thread_context.hpp>
 #include <exec/repeat_n.hpp>
@@ -26,7 +26,7 @@
 using namespace std::literals;
 
 TEST_CASE("Schedule benchmark", "[tcp][bench]") {
-    NUvExec::TLoop loop;
+    uvexec::loop_t loop;
     exec::single_thread_context thread;
 
     constexpr int n = 100;

@@ -13,11 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <uvexec/execution/loop.hpp>
-
-#include <uvexec/sockets/tcp_listener.hpp>
-
-#include <uvexec/algorithms/accept.hpp>
+#include <uvexec/uvexec.hpp>
 
 #include <exec/finally.hpp>
 #include <exec/async_scope.hpp>
@@ -34,14 +30,14 @@ namespace {
 
 constexpr int READABLE_BUFFER_SIZE = 65536;
 
-struct TTcpConnection {
-    explicit TTcpConnection(TLoop& loop)
+struct TcpConnection {
+    explicit TcpConnection(uvexec::loop_t& loop)
         : Socket(loop), Data(READABLE_BUFFER_SIZE), Buf(Data)
     {}
 
-    TTcpConnection(TTcpConnection&&) noexcept = delete;
+    TcpConnection(TcpConnection&&) noexcept = delete;
 
-    auto ProcessConnection() noexcept {
+    auto process_connection() noexcept {
         return uvexec::read_until(Socket, Buf, [this](std::size_t n) noexcept {
             if (n == 0) {
                 return false;
@@ -51,22 +47,22 @@ struct TTcpConnection {
             Buf = Data;
             Scope.spawn(stdexec::just(std::move(tmpBuf))
                     | stdexec::let_value([this](std::vector<std::byte>& tmpBuf) noexcept {
-                return uvexec::send(Socket, std::span(tmpBuf))
-                        | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
-                    fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
-                });
-            }), TLoop::TScheduler::TEnv(Socket.Loop()));
+                        return uvexec::send(Socket, std::span(tmpBuf))
+                                | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
+                                    fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
+                                });
+            }), uvexec::scheduler_t::TEnv(Socket.Loop()));
             return false;
         })
-                | stdexec::then([](std::size_t) noexcept {})
-                | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
+        | stdexec::then([](std::size_t) noexcept {})
+        | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
             if (e != UV_EOF) {
                 fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
             }
         });
     };
 
-    TTcpSocket Socket;
+    uvexec::tcp_socket_t Socket;
     exec::async_scope Scope;
     std::vector<std::byte> Data;
     std::span<std::byte> Buf;
@@ -77,15 +73,15 @@ auto RootScope() -> exec::async_scope& {
     return scope;
 }
 
-auto SpawnAccept(TTcpListener& listener) noexcept -> void;
+auto spawn_accept(uvexec::tcp_listener_t& listener) noexcept -> void;
 
-auto AcceptConnection(TTcpListener& listener) noexcept {
-    auto connection = new TTcpConnection(listener.Loop());
+auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
+    auto connection = new TcpConnection(listener.Loop());
     return exec::finally(
             uvexec::accept(listener, connection->Socket)
                     | stdexec::let_value([&, connection]() noexcept {
-                        SpawnAccept(listener);
-                        return connection->Scope.nest(connection->ProcessConnection());
+                        spawn_accept(listener);
+                        return connection->Scope.nest(connection->process_connection());
                     })
                     | stdexec::let_value([connection]() noexcept {
                         return connection->Scope.on_empty();
@@ -110,8 +106,8 @@ auto AcceptConnection(TTcpListener& listener) noexcept {
                     }));
 }
 
-auto SpawnAccept(TTcpListener& listener) noexcept -> void {
-    RootScope().spawn(AcceptConnection(listener), TLoop::TScheduler::TEnv(listener.Loop()));
+auto spawn_accept(uvexec::tcp_listener_t& listener) noexcept -> void {
+    RootScope().spawn(accept_connection(listener), uvexec::scheduler_t::TEnv(listener.Loop()));
 }
 
 }
@@ -119,15 +115,15 @@ auto SpawnAccept(TTcpListener& listener) noexcept -> void {
 
 
 void UvExecEchoServer(int port) {
-    TLoop uvLoop;
-    TIp4Addr addr("127.0.0.1", port);
-    TTcpListener listener(uvLoop, addr, 128);
+    uvexec::loop_t loop;
+    uvexec::ip_v4_addr_t addr("127.0.0.1", port);
+    uvexec::tcp_listener_t listener(loop, addr, 128);
 
     stdexec::sync_wait(
-            stdexec::schedule(uvLoop.get_scheduler())
+            stdexec::schedule(loop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
                 return exec::finally(
-                        RootScope().nest(AcceptConnection(listener))
+                        RootScope().nest(accept_connection(listener))
                         | stdexec::let_value([&]() noexcept {
                             return RootScope().on_empty();
                         }),
@@ -147,8 +143,8 @@ void UvExecEchoServerStop() {
 }
 
 void UvExecEchoClient(int port, int connections) {
-    TLoop uvLoop;
-    TTcpSocket socket(uvLoop);
+    uvexec::loop_t loop;
+    uvexec::tcp_socket_t socket(loop);
 
     TIp4Addr dest("127.0.0.1", port);
 
@@ -156,7 +152,7 @@ void UvExecEchoClient(int port, int connections) {
     std::array<std::byte, sizeof(message) - 1> arr;
     std::memcpy(arr.data(), message, arr.size());
 
-    auto conn = stdexec::schedule(uvLoop.get_scheduler())
+    auto conn = stdexec::schedule(loop.get_scheduler())
             | stdexec::then([&dest]() noexcept { return std::ref(dest); })
             | uvexec::connect(socket)
             | stdexec::then([&]() noexcept { return std::span(arr); })

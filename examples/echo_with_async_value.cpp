@@ -13,14 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <uvexec/execution/loop.hpp>
-#include <uvexec/algorithms/accept.hpp>
-#include <uvexec/algorithms/async_value.hpp>
-
-#include <uvexec/util/lazy.hpp>
+#include <uvexec/uvexec.hpp>
 
 #include <exec/async_scope.hpp>
-#include <exec/finally.hpp>
 #include <exec/when_any.hpp>
 
 #include <iostream>
@@ -28,41 +23,40 @@
 #include <fmt/ostream.h>
 #include <vector>
 
-using namespace NUvExec;
 using namespace std::literals;
 
 namespace {
 
 constexpr std::size_t READABLE_BUFFER_SIZE = 65536;
 
-struct TTcpConnection {
-    explicit TTcpConnection(TLoop& loop)
+struct TcpConnection {
+    explicit TcpConnection(uvexec::loop_t& loop)
         : Socket(loop), Data(READABLE_BUFFER_SIZE), Buf(Data)
     {}
 
-    TTcpConnection(TTcpConnection&&) noexcept = delete;
+    TcpConnection(TcpConnection&&) noexcept = delete;
 
-    friend auto tag_invoke(uvexec::drop_t, TTcpConnection& connection) noexcept {
+    friend auto tag_invoke(uvexec::drop_t, TcpConnection& connection) noexcept {
         return stdexec::let_value(stdexec::just(), [&connection]() noexcept {
             connection.Scope.request_stop();
             return connection.Scope.on_empty() | uvexec::close(connection.Socket);
         });
     }
 
-    auto Process() noexcept {
+    auto process() noexcept {
         return uvexec::read_until(Socket, Buf, [this](std::size_t n) noexcept {
             if (n == 0) {
                 return false;
             }
-            auto tmpBuf = std::exchange(Data, std::vector<std::byte>(READABLE_BUFFER_SIZE));
-            tmpBuf.resize(n);
+            auto sndBuf = std::exchange(Data, std::vector<std::byte>(READABLE_BUFFER_SIZE));
+            sndBuf.resize(n);
             Buf = std::span(Data);
-            Spawn(stdexec::just(std::move(tmpBuf))
-                    | stdexec::let_value([this](std::vector<std::byte>& tmpBuf) noexcept {
-                        return uvexec::send(Socket, std::span(tmpBuf))
+            spawn(stdexec::just(std::move(sndBuf))
+                    | stdexec::let_value([this](std::vector<std::byte>& sndBuf) noexcept {
+                        return uvexec::send(Socket, std::span(sndBuf))
                                 | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
-                            fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
-                        });
+                                    fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
+                                });
                     }));
             return false;
         })
@@ -74,42 +68,42 @@ struct TTcpConnection {
         });
     }
 
-    template <stdexec::sender TSender>
-    void Spawn(TSender&& sender) {
-        Scope.spawn(std::forward<TSender>(sender), TLoop::TScheduler::TEnv(Socket.Loop()));
+    template <stdexec::sender Sender>
+    void spawn(Sender&& sender) {
+        Scope.spawn(std::forward<Sender>(sender), uvexec::scheduler_t::TEnv(Socket.Loop()));
     }
 
     auto request_stop() noexcept {
         return Scope.request_stop();
     }
 
-    TTcpSocket Socket;
+    uvexec::tcp_socket_t Socket;
     exec::async_scope Scope;
     std::vector<std::byte> Data;
     std::span<std::byte> Buf;
 };
 
-struct TTcpServer {
-    explicit TTcpServer(TLoop& loop, const TIp4Addr& endpoint)
+struct TcpServer {
+    explicit TcpServer(uvexec::loop_t& loop, const uvexec::ip_v4_addr_t& endpoint)
         : Listener(loop, endpoint, 128)
     {}
 
-    TTcpServer(TTcpServer&&) noexcept = delete;
+    TcpServer(TcpServer&&) noexcept = delete;
 
-    friend auto tag_invoke(uvexec::drop_t, TTcpServer& server) noexcept {
+    friend auto tag_invoke(uvexec::drop_t, TcpServer& server) noexcept {
         return stdexec::let_value(stdexec::just(), [&server]() noexcept {
             server.Scope.request_stop();
             return server.Scope.on_empty() | uvexec::close(server.Listener);
         });
     }
 
-    auto AcceptConnection() noexcept {
+    auto accept_connection() noexcept {
         return stdexec::just(std::ref(Listener.Loop()))
-                | uvexec::async_value([this](TTcpConnection& connection) noexcept {
+                | uvexec::async_value([this](TcpConnection& connection) noexcept {
                     return uvexec::accept(Listener, connection.Socket)
                             | stdexec::let_value([&]() noexcept {
-                                SpawnAccept();
-                                return connection.Scope.nest(connection.Process());
+                                spawn_accept();
+                                return connection.Scope.nest(connection.process());
                             })
                             | stdexec::let_value([&connection]() noexcept {
                                 return connection.Scope.on_empty();
@@ -126,32 +120,32 @@ struct TTcpServer {
                 });
     }
 
-    void SpawnAccept() noexcept {
-        Scope.spawn(AcceptConnection(), TLoop::TScheduler::TEnv(Listener.Loop()));
+    void spawn_accept() noexcept {
+        Scope.spawn(accept_connection(), uvexec::scheduler_t::TEnv(Listener.Loop()));
     }
 
     auto request_stop() noexcept {
         return Scope.request_stop();
     }
 
-    TTcpListener Listener;
+    uvexec::tcp_listener_t Listener;
     exec::async_scope Scope;
 };
 
 }
 
-int main() {
-    TLoop uvLoop;
-    TIp4Addr addr("127.0.0.1", 1329);
+auto main() -> int {
+    uvexec::loop_t loop;
+    uvexec::ip_v4_addr_t addr("127.0.0.1", 1329);
 
     stdexec::sync_wait(
-            stdexec::schedule(uvLoop.get_scheduler())
+            stdexec::schedule(loop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
                 return exec::when_any(
-                        uvexec::schedule_upon_signal(uvLoop.get_scheduler(), SIGINT),
-                        stdexec::just(std::ref(uvLoop), std::ref(addr))
-                        | uvexec::async_value([&](TTcpServer& server) noexcept {
-                            return server.Scope.nest(server.AcceptConnection())
+                        uvexec::schedule_upon_signal(loop.get_scheduler(), SIGINT),
+                        stdexec::just(std::ref(loop), std::ref(addr))
+                        | uvexec::async_value([&](TcpServer& server) noexcept {
+                            return server.Scope.nest(server.accept_connection())
                                     | stdexec::let_value([&server]() noexcept {
                                         return server.Scope.on_empty();
                                     });

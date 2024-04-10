@@ -213,15 +213,6 @@ static void on_client_close(uv_handle_t* handle) {
     free(handle);
 }
 
-static void on_client_shutdown(uv_shutdown_t* req, int status) {
-    uv_stream_t* stream = req->data;
-    free(req);
-    uv_close((uv_handle_t*) stream, on_client_close);
-    if (status < 0) {
-        fprintf(stderr, "Client: Unable to shutdown TCP connection -> %s\n", uv_strerror(status));
-    }
-}
-
 static void on_client_alloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
     buf->base = CLIENT_READ_BUFFER;
     buf->len = READABLE_BUFFER_SIZE;
