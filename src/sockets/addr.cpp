@@ -17,6 +17,8 @@
 
 #include <uvexec/uv_util/errors.hpp>
 
+#include <cstring>
+
 
 namespace NUvExec {
 
