@@ -22,9 +22,13 @@ target_link_libraries(signal_test PRIVATE uvexec_test_common)
 add_executable(tcp_test tcp.cpp)
 target_link_libraries(tcp_test PRIVATE uvexec_test_common)
 
+add_executable(udp_test udp.cpp)
+target_link_libraries(udp_test PRIVATE uvexec_test_common)
+
 
 add_test(AsyncValueTest async_value_test)
 add_test(ExecutionTest execution_test)
 add_test(TimeTest time_test)
 add_test(SignalTest signal_test)
 add_test(TcpTest tcp_test)
+add_test(UdpTest udp_test)

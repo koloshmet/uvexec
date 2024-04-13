@@ -28,6 +28,9 @@ using TDecayedTuple = std::tuple<std::decay_t<Ts>...>;
 template <typename TFn>
 using TMethodArgType = typename NDetail::TMethodArg<TFn>::TType;
 
+template <typename T>
+using TRemoveReferenceWrapperType = typename NDetail::TRemoveReferenceWrapper<T>::TType;
+
 template <typename T, typename TContainer>
 using TBindFront = decltype(NDetail::BindFront(Deduce<T>(), Deduce<TContainer>()));
 

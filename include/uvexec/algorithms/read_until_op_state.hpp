@@ -18,8 +18,6 @@
 #include "completion_signatures.hpp"
 #include <uvexec/execution/loop.hpp>
 
-#include <uvexec/uv_util/reqs.hpp>
-
 #include <span>
 
 

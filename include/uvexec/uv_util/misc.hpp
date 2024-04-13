@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include "errors.hpp"
 #include <uv.h>
 
 #include <stdexec/execution.hpp>
@@ -56,5 +57,8 @@ template <typename THandle>
 auto GetLoop(THandle& handle) -> uv_loop_t& {
     return *handle.loop;
 }
+
+auto CopyAddress(const sockaddr* from, sockaddr_in& to) -> TUvError;
+auto CopyAddress(const sockaddr* from, sockaddr_in6& to) -> TUvError;
 
 }

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "sockets/tcp_listener.hpp"
+#include "sockets/udp.hpp"
 #include "algorithms/accept.hpp"
 #include "algorithms/async_value.hpp"
 
@@ -23,8 +24,10 @@ namespace uvexec {
 
 using loop_t = NUvExec::TLoop;
 using scheduler_t = NUvExec::TLoop::TScheduler;
+
 using tcp_socket_t = NUvExec::TTcpSocket;
 using tcp_listener_t = NUvExec::TTcpListener;
+using udp_socket_t = NUvExec::TUdpSocket;
 
 using ip_v4_addr_t = NUvExec::TIp4Addr;
 using ip_v6_addr_t = NUvExec::TIp6Addr;

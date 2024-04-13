@@ -59,6 +59,16 @@ struct TMethodArg<TRes(TFn::*)(TArg) const& noexcept> { using TType = TArg; };
 template <typename TRes, typename TFn, typename TArg>
 struct TMethodArg<TRes(TFn::*)(TArg) const&& noexcept> { using TType = TArg; };
 
+template <typename T>
+struct TRemoveReferenceWrapper {
+    using TType = T;
+};
+
+template <typename T>
+struct TRemoveReferenceWrapper<std::reference_wrapper<T>> {
+    using TType = T;
+};
+
 template <typename T, template <typename...> typename TCont, typename... Ts>
 auto BindFront(TDeduce<T>, TDeduce<TCont<Ts...>>) -> TCont<T, Ts...>;
 

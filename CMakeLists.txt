@@ -10,20 +10,8 @@ set(UVEXEC_STDEXEC_VERSION 950dd0e CACHE STRING "Version of stdexec to use")
 set(UVEXEC_WARNINGS "" CACHE STRING "Warnings for uvexec targets in format appropriate for compiler")
 set(UVEXEC_DEFINITIONS "" CACHE STRING "Additional compile definitions for uvexec targets")
 
-option(UVEXEC_ENABLE_SANITIZERS "Enable sanitizers for all targets" OFF)
-if (UVEXEC_ENABLE_SANITIZERS)
-    set(UVEXEC_SANITIZE -fsanitize=undefined CACHE STRING "Sanitizer in format -fsanitize=undefined")
-    set_property(CACHE UVEXEC_SANITIZE PROPERTY STRINGS
-            -fsanitize=undefined
-            -fsanitize=address
-            -fsanitize=thread
-            -fsanitize=memory)
-
-    add_compile_options(${UVEXEC_SANITIZE})
-    add_link_options(${UVEXEC_SANITIZE})
-endif ()
-
 add_subdirectory(src)
+add_library(uvexec::uvexec ALIAS uvexec_impl)
 
 option(UVEXEC_ENABLE_TESTS "Enable test targets" OFF)
 option(UVEXEC_ENABLE_SANDBOX "Enable sandbox target" OFF)
@@ -42,4 +30,17 @@ if (UVEXEC_ENABLE_EXAMPLES)
 endif ()
 if (UVEXEC_ENABLE_SANDBOX)
     add_subdirectory(sandbox)
+endif ()
+
+option(UVEXEC_ENABLE_SANITIZERS "Enable sanitizers for all targets" OFF)
+if (UVEXEC_ENABLE_SANITIZERS)
+    set(UVEXEC_SANITIZE -fsanitize=undefined CACHE STRING "Sanitizer in format -fsanitize=undefined")
+    set_property(CACHE UVEXEC_SANITIZE PROPERTY STRINGS
+            -fsanitize=undefined
+            -fsanitize=address
+            -fsanitize=thread
+            -fsanitize=memory)
+
+    add_compile_options(${UVEXEC_SANITIZE})
+    add_link_options(${UVEXEC_SANITIZE})
 endif ()

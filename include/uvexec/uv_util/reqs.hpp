@@ -57,7 +57,19 @@ auto ReadStop(uv_tcp_t& tcp) -> TUvError;
 
 auto ReadStop(uv_stream_t* tcp) -> TUvError;
 
+auto ReceiveStart(uv_udp_t& udp, uv_alloc_cb acb, uv_udp_recv_cb rcb) -> TUvError;
+
+auto ReceiveStop(uv_udp_t& udp) -> TUvError;
+
 auto Write(uv_write_t& req, uv_tcp_t& tcp, std::span<const uv_buf_t> bufs, uv_write_cb cb) -> TUvError;
+
+auto Send(
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in& addr, uv_udp_send_cb cb)
+    -> TUvError;
+
+auto Send(
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in6& addr, uv_udp_send_cb cb)
+    -> TUvError;
 
 void Close(uv_handle_t* handle, uv_close_cb cb);
 
@@ -68,6 +80,8 @@ void Close(uv_timer_t& handle, uv_close_cb cb);
 void Close(uv_signal_t& handle, uv_close_cb cb);
 
 void Close(uv_tcp_t& handle, uv_close_cb cb);
+
+void Close(uv_udp_t& handle, uv_close_cb cb);
 
 void Close(uv_idle_t& handle, uv_close_cb cb);
 

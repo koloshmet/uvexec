@@ -84,8 +84,28 @@ auto ReadStop(uv_stream_t* tcp) -> TUvError {
     return ::uv_read_stop(tcp);
 }
 
+auto ReceiveStart(uv_udp_t& udp, uv_alloc_cb acb, uv_udp_recv_cb rcb) -> TUvError {
+    return ::uv_udp_recv_start(&udp, acb, rcb);
+}
+
+auto ReceiveStop(uv_udp_t& udp) -> TUvError {
+    return ::uv_udp_recv_stop(&udp);
+}
+
 auto Write(uv_write_t& req, uv_tcp_t& tcp, std::span<const uv_buf_t> bufs, uv_write_cb cb) -> TUvError {
     return ::UvTcpWrite(&req, &tcp, bufs.data(), static_cast<unsigned>(bufs.size()), cb);
+}
+
+auto Send(
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in& addr, uv_udp_send_cb cb)
+    -> TUvError {
+    return ::UvUdpInSend(&req, &udp, bufs.data(), static_cast<unsigned>(bufs.size()), &addr, cb);
+}
+
+auto Send(
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in6& addr, uv_udp_send_cb cb)
+    -> TUvError {
+    return ::UvUdpIn6Send(&req, &udp, bufs.data(), static_cast<unsigned>(bufs.size()), &addr, cb);
 }
 
 void Close(uv_handle_t* handle, uv_close_cb cb) {
@@ -106,6 +126,10 @@ void Close(uv_signal_t& handle, uv_close_cb cb) {
 
 void Close(uv_tcp_t& handle, uv_close_cb cb) {
     ::UvTcpClose(&handle, cb);
+}
+
+void Close(uv_udp_t& handle, uv_close_cb cb) {
+    ::UvUdpClose(&handle, cb);
 }
 
 void Close(uv_idle_t& handle, uv_close_cb cb) {

@@ -20,6 +20,7 @@
 namespace NUvExec {
 
 struct TIp4Addr {
+    TIp4Addr() noexcept;
     TIp4Addr(const char *ip, int port);
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TIp4Addr& addr) noexcept -> sockaddr_in&;
@@ -29,6 +30,7 @@ struct TIp4Addr {
 };
 
 struct TIp6Addr {
+    TIp6Addr() noexcept;
     TIp6Addr(const char *ip, int port);
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TIp6Addr& addr) noexcept -> sockaddr_in6&;

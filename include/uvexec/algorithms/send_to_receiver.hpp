@@ -20,31 +20,39 @@
 #include <uvexec/uv_util/reqs.hpp>
 #include <uvexec/uv_util/misc.hpp>
 
+#include <span>
+
 
 namespace NUvExec {
 
-template <stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver, typename TStreamSocket>
-class TConnectReceiver : public stdexec::receiver_adaptor<TConnectReceiver<TReceiver, TStreamSocket>, TReceiver> {
-    friend stdexec::receiver_adaptor<TConnectReceiver, TReceiver>;
+template <stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver, typename TSocket>
+class TSendToReceiver : public stdexec::receiver_adaptor<TSendToReceiver<TReceiver, TSocket>, TReceiver> {
+    friend stdexec::receiver_adaptor<TSendToReceiver, TReceiver>;
 
 public:
-    TConnectReceiver(TStreamSocket& socket, TReceiver rec) noexcept
-        : stdexec::receiver_adaptor<TConnectReceiver, TReceiver>(std::move(rec)), Socket{&socket}
+    TSendToReceiver(TSocket& socket, TReceiver rec) noexcept
+        : stdexec::receiver_adaptor<TSendToReceiver, TReceiver>(std::move(rec)), Handle{&socket}
     {}
 
     template <typename TEp>
-    void set_value(const TEp& ep) noexcept {
-        ConnectReq.data = this;
-        auto err = NUvUtil::Connect(
-                ConnectReq, NUvUtil::RawUvObject(*Socket), NUvUtil::RawUvObject(ep), ConnectCallback);
+    void set_value(std::span<const uv_buf_t> buffs, const TEp& ep) noexcept {
+        SendReq.data = this;
+        auto err = NUvUtil::Send(SendReq, NUvUtil::RawUvObject(*Handle), buffs, NUvUtil::RawUvObject(ep), SendCallback);
         if (NUvUtil::IsError(err)) {
             stdexec::set_error(std::move(*this).base(), err);
         }
     }
 
+    template <typename TEp>
+    void set_value(std::span<std::byte> buff, const TEp& ep) noexcept {
+        Buf.base = reinterpret_cast<char*>(buff.data());
+        Buf.len = buff.size();
+        set_value(std::span(&Buf, 1), ep);
+    }
+
 private:
-    static void ConnectCallback(uv_connect_t* req, NUvUtil::TUvError status) {
-        auto self = static_cast<TConnectReceiver*>(req->data);
+    static void SendCallback(uv_udp_send_t* req, NUvUtil::TUvError status) {
+        auto self = static_cast<TSendToReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
             stdexec::set_error(std::move(*self).base(), status);
         } else {
@@ -53,8 +61,9 @@ private:
     }
 
 private:
-    uv_connect_t ConnectReq;
-    TStreamSocket* Socket;
+    uv_udp_send_t SendReq;
+    uv_buf_t Buf;
+    TSocket* Handle;
 };
 
 }

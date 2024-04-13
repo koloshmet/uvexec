@@ -17,8 +17,14 @@
 
 #include <uvexec/uv_util/errors.hpp>
 
+#include <cstring>
+
 
 namespace NUvExec {
+
+TIp4Addr::TIp4Addr() noexcept {
+    std::memset(&Addr, 0, sizeof(Addr));
+}
 
 TIp4Addr::TIp4Addr(const char* ip, int port) {
     NUvUtil::Assert(::uv_ip4_addr(ip, port, &Addr));
@@ -34,6 +40,10 @@ auto tag_invoke(NUvUtil::TRawUvObject, const TIp4Addr& addr) noexcept -> const s
 
 TIp6Addr::TIp6Addr(const char* ip, int port) {
     NUvUtil::Assert(::uv_ip6_addr(ip, port, &Addr));
+}
+
+TIp6Addr::TIp6Addr() noexcept {
+    std::memset(&Addr, 0, sizeof(Addr));
 }
 
 auto tag_invoke(NUvUtil::TRawUvObject, TIp6Addr& addr) noexcept -> sockaddr_in6& {
