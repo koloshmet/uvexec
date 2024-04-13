@@ -15,33 +15,36 @@
  */
 #pragma once
 
-#include "read_until_op_state.hpp"
+#include "receive_from_op_state.hpp"
 
 
 namespace NUvExec {
 
-template <stdexec::sender TSender, typename TSocket, typename TCondition>
-    requires std::is_nothrow_invocable_r_v<bool, TCondition, std::size_t>
-struct TReadUntilSender {
+template <stdexec::sender TSender, typename TSocket>
+struct TReceiveFromSender {
     using sender_concept = stdexec::sender_t;
     using TCompletionSignatures = TReadCompletionSignatures;
 
     template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
-    friend auto tag_invoke(stdexec::connect_t, TReadUntilSender s, TReceiver&& rec) {
-        return TReadUntilOpState(*s.Socket, std::move(s.Condition), std::move(s.Sender), std::forward<TReceiver>(rec));
+    friend auto tag_invoke(stdexec::connect_t, TReceiveFromSender s, TReceiver&& rec) {
+        using TValueTypes = stdexec::value_types_of_t<
+                TSender, stdexec::env_of_t<TReceiver>, NMeta::TDecayedTuple, std::type_identity_t>;
+        using TEndpoint = NMeta::TRemoveReferenceWrapperType<std::tuple_element_t<1, TValueTypes>>;
+        return TReceiveFromOpState<TSocket, TEndpoint, TSender, std::decay_t<TReceiver>>(
+                *s.Socket, std::move(s.Sender), std::forward<TReceiver>(rec));
     }
 
-    friend auto tag_invoke(stdexec::get_env_t, const TReadUntilSender& s) noexcept {
+    friend auto tag_invoke(stdexec::get_env_t, const TReceiveFromSender& s) noexcept {
         return stdexec::get_env(s.Sender);
     }
 
     template <typename TEnv>
-    friend auto tag_invoke(stdexec::get_completion_signatures_t, const TReadUntilSender&, const TEnv&) noexcept {
+    friend auto tag_invoke(
+            stdexec::get_completion_signatures_t, const TReceiveFromSender&, const TEnv&) noexcept {
         return TCompletionSignatures{};
     }
 
     TSender Sender;
-    TCondition Condition;
     TSocket* Socket;
 };
 

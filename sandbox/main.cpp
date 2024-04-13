@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <uvexec/execution/loop.hpp>
 #include <uvexec/algorithms/accept.hpp>
 #include <uvexec/algorithms/async_value.hpp>
+#include <uvexec/sockets/udp.hpp>
 
 #include <uvexec/util/lazy.hpp>
 
@@ -28,12 +28,13 @@
 
 #include <iostream>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <fmt/ostream.h>
 #include <fmt/chrono.h>
 
 using namespace NUvExec;
 using namespace std::literals;
 
-int main() {
+auto main() -> int {
     return 0;
 }

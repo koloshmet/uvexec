@@ -28,3 +28,10 @@ auto NUvUtil::NDetail::GetData(const uv_stream_t* handle) -> void* {
 void NUvUtil::SetData(uv_handle_t* handle, void* data) {
     ::uv_handle_set_data(handle, data);
 }
+
+auto NUvUtil::CopyAddress(const sockaddr* from, sockaddr_in& to) -> TUvError {
+    return ::UvCopyInAddress(from, &to);
+}
+auto NUvUtil::CopyAddress(const sockaddr* from, sockaddr_in6& to) -> TUvError {
+    return ::UvCopyIn6Address(from, &to);
+}

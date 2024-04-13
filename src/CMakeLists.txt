@@ -24,6 +24,7 @@ add_library(uvexec_impl
         sockets/addr.cpp
         sockets/tcp.cpp
         sockets/tcp_listener.cpp
+        sockets/udp.cpp
         uv_util/errors.cpp
         uv_util/misc.cpp
         uv_util/reqs.cpp

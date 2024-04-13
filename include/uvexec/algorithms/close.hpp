@@ -17,8 +17,6 @@
 
 #include "close_receiver.hpp"
 
-#include <uvexec/interface/uvexec.hpp>
-
 
 namespace NUvExec {
 

@@ -19,12 +19,36 @@ void* UvStreamGetData(const uv_stream_t* handle) {
     return uv_handle_get_data((uv_handle_t*)handle);
 }
 
+int UvCopyInAddress(const struct sockaddr* from, struct sockaddr_in* to) {
+    if (from->sa_family != AF_INET) {
+        return UV_EINVAL;
+    }
+    memcpy(to, from, sizeof(struct sockaddr_in));
+    return 0;
+}
+
+int UvCopyIn6Address(const struct sockaddr* from, struct sockaddr_in6* to) {
+    if (from->sa_family != AF_INET6) {
+        return UV_EINVAL;
+    }
+    memcpy(to, from, sizeof(struct sockaddr_in6));
+    return 0;
+}
+
 int UvTcpInBind(uv_tcp_t* tcp, const struct sockaddr_in* addr) {
     return uv_tcp_bind(tcp, (const struct sockaddr*)addr, 0);
 }
 
 int UvTcpIn6Bind(uv_tcp_t* tcp, const struct sockaddr_in6* addr) {
     return uv_tcp_bind(tcp, (const struct sockaddr*)addr, 0);
+}
+
+int UvUdpInBind(uv_udp_t* udp, const struct sockaddr_in* addr) {
+    return uv_udp_bind(udp, (const struct sockaddr*)addr, 0);
+}
+
+int UvUdpIn6Bind(uv_udp_t* udp, const struct sockaddr_in6* addr) {
+    return uv_udp_bind(udp, (const struct sockaddr*)addr, 0);
 }
 
 int UvTcpListen(uv_tcp_t* tcp, int backlog, uv_connection_cb cb) {
@@ -59,6 +83,18 @@ int UvTcpWrite(uv_write_t* req, uv_tcp_t* tcp, const uv_buf_t* bufs, unsigned nb
     return uv_write(req, (uv_stream_t*)tcp, bufs, nbufs, cb);
 }
 
+int UvUdpInSend(
+        uv_udp_send_t* req, uv_udp_t* udp, const uv_buf_t* bufs, unsigned nbufs,
+        const struct sockaddr_in* addr, uv_udp_send_cb cb) {
+    return uv_udp_send(req, udp, bufs, nbufs, (struct sockaddr*)addr, cb);
+}
+
+int UvUdpIn6Send(
+        uv_udp_send_t* req, uv_udp_t* udp, const uv_buf_t* bufs, unsigned nbufs,
+        const struct sockaddr_in6* addr, uv_udp_send_cb cb) {
+    return uv_udp_send(req, udp, bufs, nbufs, (struct sockaddr*)addr, cb);
+}
+
 void UvAsyncClose(uv_async_t* handle, uv_close_cb close_cb) {
     uv_close((uv_handle_t*)handle, close_cb);
 }
@@ -72,6 +108,10 @@ void UvSignalClose(uv_signal_t* handle, uv_close_cb close_cb) {
 }
 
 void UvTcpClose(uv_tcp_t* handle, uv_close_cb close_cb) {
+    uv_close((uv_handle_t*)handle, close_cb);
+}
+
+void UvUdpClose(uv_udp_t* handle, uv_close_cb close_cb) {
     uv_close((uv_handle_t*)handle, close_cb);
 }
 
