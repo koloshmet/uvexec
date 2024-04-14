@@ -101,6 +101,9 @@ public:
 private:
     static void ReceiveCallback(
             uv_udp_t* udp, std::ptrdiff_t nrd, const uv_buf_t*, const struct sockaddr* addr, unsigned flags) {
+        if (addr == nullptr && nrd == 0) {
+            return;
+        }
         auto self = static_cast<TReceiveFromOpState*>(udp->data);
         if (!self->Used.test_and_set()) {
             NUvUtil::ReceiveStop(*udp);

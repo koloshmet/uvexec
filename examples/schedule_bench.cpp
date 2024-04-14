@@ -25,7 +25,7 @@
 
 using namespace std::literals;
 
-TEST_CASE("Schedule benchmark", "[tcp][bench]") {
+TEST_CASE("Schedule benchmark", "[loop][bench]") {
     uvexec::loop_t loop;
     exec::single_thread_context thread;
 
