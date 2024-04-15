@@ -52,8 +52,7 @@ public:
         using TOpState = stdexec::connect_result_t<TSender, TAcceptReceiver>;
 
     public:
-        TAcceptOpState(
-                TTcpListener& listener, TTcpSocket& socket, TSender&& sender, TReceiver&& receiver) noexcept
+        TAcceptOpState(TTcpListener& listener, TTcpSocket& socket, TSender&& sender, TReceiver&& receiver) noexcept
             : Op(stdexec::connect(std::move(sender), TAcceptReceiver(*this, std::move(receiver))))
             , Listener{&listener}
             , Socket{&socket}
@@ -65,7 +64,7 @@ public:
         }
 
         void Accept() noexcept override {
-            if (Used.test_and_set()) {
+            if (Used.test_and_set(std::memory_order_relaxed)) {
                 return;
             }
             StopCallback.reset();
@@ -77,7 +76,7 @@ public:
             }
         }
         void Error(NUvUtil::TUvError err) noexcept override {
-            if (Used.test_and_set()) {
+            if (Used.test_and_set(std::memory_order_relaxed)) {
                 return;
             }
             StopCallback.reset();
@@ -85,7 +84,7 @@ public:
         }
 
         void Stop() noexcept {
-            if (!Used.test_and_set()) {
+            if (!Used.test_and_set(std::memory_order_relaxed)) {
                 Listener->Loop().Schedule(StopOp);
             }
         }

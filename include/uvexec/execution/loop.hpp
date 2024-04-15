@@ -15,8 +15,9 @@
  */
 #pragma once
 
-#include "sync_wait_receiver.hpp"
 #include "loop_clock.hpp"
+#include "sync_wait_receiver.hpp"
+#include "runner.hpp"
 
 #include <uvexec/interface/uvexec.hpp>
 #include <uvexec/algorithms/completion_signatures.hpp>
@@ -57,15 +58,6 @@ class TLoop {
     };
 
 public:
-    struct TRunner : TIntrusiveListNode<TRunner> {
-        std::atomic_uint64_t Awakenings{1};
-        bool Acquired{false};
-
-        void Wakeup() noexcept;
-        void WakeupFinished() noexcept;
-    };
-
-public:
     TLoop();
     TLoop(TLoop&&) noexcept = delete;
     ~TLoop();
@@ -78,7 +70,7 @@ public:
     struct TOpState {
         virtual void Apply() noexcept = 0;
 
-        std::atomic<TOpState*> Next{nullptr};
+        TOpState* Next{nullptr};
     };
 
     class TOpStateList {
@@ -154,14 +146,14 @@ public:
 
     private:
         void Stop() noexcept {
-            if (!Used.test_and_set()) {
+            if (!Used.test_and_set(std::memory_order_relaxed)) {
                 Loop->Schedule(StopOp);
             }
         }
 
         static void AfterCallback(uv_timer_t* timer) {
             auto opState = static_cast<TTimedScheduleOpState*>(timer->data);
-            if (!opState->Used.test_and_set()) {
+            if (!opState->Used.test_and_set(std::memory_order_relaxed)) {
                 opState->StopCallback.reset();
                 NUvUtil::Close(*timer, CloseCallback);
             }
@@ -232,14 +224,14 @@ public:
 
     private:
         void Stop() noexcept {
-            if (!Used.test_and_set()) {
+            if (!Used.test_and_set(std::memory_order_relaxed)) {
                 Loop->Schedule(StopOp);
             }
         }
 
         static void SignalCallback(uv_signal_t* signal, int) {
             auto opState = static_cast<TSignalScheduleOpState*>(signal->data);
-            if (!opState->Used.test_and_set()) {
+            if (!opState->Used.test_and_set(std::memory_order_relaxed)) {
                 opState->StopCallback.reset();
                 NUvUtil::Close(*signal, CloseCallback);
             }
@@ -395,10 +387,10 @@ public:
             auto& loop = *sched.Loop;
             TRunner runner;
             auto wakeup = [&runner, &loop]() noexcept {
-                if (runner.Acquired) {
+                if (runner.Acquired()) {
                     loop.Stop();
                 }
-                runner.WakeupFinished();
+                runner.Finish();
             };
 
             using TWakeup = decltype(wakeup);
@@ -443,7 +435,7 @@ private:
     uv_async_t Async;
     TOpStateList Scheduled;
     std::mutex RunMtx;
-    TIntrusiveList<TRunner> Runners;
+    TRunnersQueue Runners;
     bool Running;
 };
 

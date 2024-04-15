@@ -15,21 +15,44 @@
  */
 #pragma once
 
-#include <chrono>
-#include <exception>
+#include <uvexec/util/intrusive_list.hpp>
+#include <atomic>
 
 namespace NUvExec {
 
-struct TLoopClock {
-    using rep = std::chrono::milliseconds::rep;
-    using period = std::chrono::milliseconds::period;
-    using duration = std::chrono::milliseconds;
-    using time_point = std::chrono::time_point<TLoopClock, duration>;
+class TRunner : public TIntrusiveListNode<TRunner> {
+public:
+    TRunner() = default;
 
-    static constexpr bool is_steady = true;
-    [[noreturn]] static time_point now() noexcept { // Non-static, use exec::now(uvLoop.get_scheduler()) instead
-        std::terminate();
-    }
+    bool Finished() const noexcept;
+
+    bool AcquireIfNotFinished() noexcept;
+
+    bool Acquired() const noexcept;
+
+    void Wakeup() noexcept;
+
+    void Finish() noexcept;
+
+    void Wait() noexcept;
+
+private:
+    std::atomic_uint64_t Awakenings{1};
+    bool Acq{false};
+};
+
+class TRunnersQueue {
+public:
+    TRunnersQueue() = default;
+
+    void Add(TRunner& runner) noexcept;
+
+    void Erase(TRunner& runner);
+
+    void WakeupNext() noexcept;
+
+private:
+    TIntrusiveList<TRunner> Runners;
 };
 
 }

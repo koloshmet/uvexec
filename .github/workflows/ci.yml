@@ -17,7 +17,7 @@ jobs:
 
     strategy:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
-      fail-fast: false
+      fail-fast: true
 
       # Set up a matrix to run the following 3 configurations:
       # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
@@ -27,7 +27,7 @@ jobs:
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest, windows-latest]
-        preset: [ci-debug-unix, ci-debug-clang, ci-debug-win]
+        preset: [ci-debug-unix, ci-debug-clang, ci-debug-win, ci-asan, ci-tsan]
         include:
           - os: windows-latest
             preset: ci-debug-win
@@ -35,11 +35,19 @@ jobs:
             preset: ci-debug-unix
           - os: ubuntu-latest
             preset: ci-debug-clang
+          - os: ubuntu-latest
+            preset: ci-asan
+          - os: ubuntu-latest
+            preset: ci-tsan
         exclude:
           - os: windows-latest
             preset: ci-debug-unix
           - os: windows-latest
             preset: ci-debug-clang
+          - os: windows-latest
+            preset: ci-asan
+          - os: windows-latest
+            preset: ci-tsan
           - os: ubuntu-latest
             preset: ci-debug-win
 
