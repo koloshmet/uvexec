@@ -149,6 +149,24 @@
       }
     },
     {
+      "name": "ci-asan",
+      "inherits": "ci-debug-clang",
+      "displayName": "CI config with ASan",
+      "description": "CI config with Address Sanitizer",
+      "cacheVariables": {
+        "UVEXEC_SANITIZE": "-fsanitize=address"
+      }
+    },
+    {
+      "name": "ci-tsan",
+      "inherits": "ci-debug-clang",
+      "displayName": "CI config with TSan",
+      "description": "CI config with Thread Sanitizer",
+      "cacheVariables": {
+        "UVEXEC_SANITIZE": "-fsanitize=thread"
+      }
+    },
+    {
       "name": "ci-debug-win",
       "inherits": "dev-debug-win",
       "displayName": "CI debug config for windows",
@@ -216,6 +234,16 @@
       "configuration": "Debug"
     },
     {
+      "name": "ci-asan",
+      "configurePreset": "ci-asan",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ci-tsan",
+      "configurePreset": "ci-tsan",
+      "configuration": "Debug"
+    },
+    {
       "name": "ci-debug-win",
       "configurePreset": "ci-debug-win",
       "configuration": "Debug"
@@ -256,6 +284,16 @@
       "name": "ci-debug-clang",
       "inherits": "debug",
       "configurePreset": "ci-debug-clang"
+    },
+    {
+      "name": "ci-asan",
+      "inherits": "debug",
+      "configurePreset": "ci-asan"
+    },
+    {
+      "name": "ci-tsan",
+      "inherits": "debug",
+      "configurePreset": "ci-tsan"
     },
     {
       "name": "ci-debug-win",

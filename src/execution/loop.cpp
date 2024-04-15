@@ -17,8 +17,6 @@
 
 #include <uvexec/uv_util/safe_uv.hpp>
 
-#include <forward_list>
-
 namespace NUvExec {
 
 TLoop::TLoop(): Scheduled{}, Running{false} {
@@ -63,31 +61,21 @@ void TLoop::Stop() noexcept {
 }
 
 void TLoop::RunnerSteal(TRunner& runner) {
-    while (runner.Awakenings.load() != 0) {
+    while (!runner.Finished()) {
         std::unique_lock lock(RunMtx);
         if (!Running) {
-            if (runner.Awakenings.load() != 0) {
+            if (runner.AcquireIfNotFinished()) {
                 Running = true;
                 lock.unlock();
-                runner.Acquired = true;
                 run();
                 lock.lock();
                 Running = false;
             }
-            while (!Runners.Empty()) {
-                auto& next = Runners.Pop();
-                if (next.Awakenings.load() != 0) {
-                    next.Wakeup();
-                    break;
-                }
-            }
+            Runners.WakeupNext();
         } else {
             Runners.Add(runner);
             lock.unlock();
-            auto wakeups = runner.Awakenings.load();
-            while (wakeups != 0 && runner.Awakenings.load() == wakeups) {
-                runner.Awakenings.wait(wakeups);
-            }
+            runner.Wait();
             lock.lock();
             Runners.Erase(runner);
         }
@@ -99,18 +87,18 @@ TLoop::TOpStateList::TOpStateList() noexcept
 {}
 
 void TLoop::TOpStateList::PushBack(TOpState& op) noexcept {
-    auto curTop = Head.load();
+    auto curTop = Head.load(std::memory_order_relaxed);
     do {
-        op.Next.store(curTop);
-    } while (!Head.compare_exchange_weak(curTop, &op));
+        op.Next = curTop;
+    } while (!Head.compare_exchange_weak(curTop, &op, std::memory_order_release, std::memory_order_relaxed));
 }
 
 auto TLoop::TOpStateList::Grab() noexcept -> TLoop::TOpState* {
-    auto opStates = Head.exchange(nullptr);
+    auto opStates = Head.exchange(nullptr, std::memory_order_acquire);
     TOpState* newTop = nullptr;
     auto cur = opStates;
     while (cur != nullptr) {
-        auto next = cur->Next.load();
+        auto next = cur->Next;
         cur->Next = newTop;
         newTop = cur;
         cur = next;
@@ -123,20 +111,10 @@ void TLoop::ApplyOpStates(uv_async_t* async) {
 
     auto op = opStates;
     while (op != nullptr) {
-        auto next = op->Next.load();
+        auto next = op->Next;
         op->Apply();
         op = next;
     }
-}
-
-void TLoop::TRunner::Wakeup() noexcept {
-    Awakenings.fetch_add(1);
-    Awakenings.notify_one();
-}
-
-void TLoop::TRunner::WakeupFinished() noexcept {
-    Awakenings.store(0);
-    Awakenings.notify_one();
 }
 
 

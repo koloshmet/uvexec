@@ -24,7 +24,7 @@
 namespace NUvExec {
 
 template <typename TSocket, NMeta::IsIn<uvexec::endpoints_of_t<TSocket>> TEndpoint,
-        stdexec::sender TSender, stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver>
+        stdexec::sender TSender, stdexec::receiver_of<TReadCompletionSignatures> TReceiver>
 class TReceiveFromOpState {
     class TReceiveFromReceiver final : public stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver> {
         friend stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>;
@@ -70,7 +70,7 @@ public:
     }
 
     void Stop() noexcept {
-        if (!Used.test_and_set()) {
+        if (!Used.test_and_set(std::memory_order_relaxed)) {
             auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Socket));
             static_cast<TLoop*>(loop.data)->Schedule(StopOp);
         }
@@ -100,12 +100,12 @@ public:
 
 private:
     static void ReceiveCallback(
-            uv_udp_t* udp, std::ptrdiff_t nrd, const uv_buf_t*, const struct sockaddr* addr, unsigned flags) {
+            uv_udp_t* udp, std::ptrdiff_t nrd, const uv_buf_t*, const struct sockaddr* addr, unsigned) {
         if (addr == nullptr && nrd == 0) {
             return;
         }
         auto self = static_cast<TReceiveFromOpState*>(udp->data);
-        if (!self->Used.test_and_set()) {
+        if (!self->Used.test_and_set(std::memory_order_relaxed)) {
             NUvUtil::ReceiveStop(*udp);
             self->StopCallback.reset();
             if (nrd < 0) {

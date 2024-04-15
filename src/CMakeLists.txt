@@ -21,6 +21,7 @@ target_link_libraries(uvexec_safe_uv PUBLIC uvexec_uv)
 
 add_library(uvexec_impl
         execution/loop.cpp
+        execution/runner.cpp
         sockets/addr.cpp
         sockets/tcp.cpp
         sockets/tcp_listener.cpp

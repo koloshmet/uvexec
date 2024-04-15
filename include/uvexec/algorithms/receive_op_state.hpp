@@ -68,7 +68,7 @@ public:
     }
 
     void Stop() noexcept {
-        if (!Used.test_and_set()) {
+        if (!Used.test_and_set(std::memory_order_relaxed)) {
             auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Stream));
             static_cast<TLoop*>(loop.data)->Schedule(StopOp);
         }
@@ -99,7 +99,7 @@ public:
 private:
     static void ReadCallback(uv_stream_t* tcp, std::ptrdiff_t nrd, const uv_buf_t*) {
         TReceiveOpState* self = NUvUtil::GetData<TReceiveOpState>(tcp);
-        if (!self->Used.test_and_set()) {
+        if (!self->Used.test_and_set(std::memory_order_relaxed)) {
             NUvUtil::ReadStop(tcp);
             self->StopCallback.reset();
             if (nrd < 0) {
