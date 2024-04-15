@@ -16,6 +16,7 @@
 #pragma once
 
 #include <chrono>
+#include <exception>
 
 namespace NUvExec {
 
