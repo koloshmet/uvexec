@@ -136,6 +136,13 @@
       }
     },
     {
+      "name": "ci-release-unix",
+      "inherits": "dev-release-unix",
+      "displayName": "CI release config",
+      "description": "CI release build",
+      "binaryDir": "build-ci"
+    },
+    {
       "name": "ci-debug-clang",
       "inherits": "dev-debug-clang",
       "displayName": "CI debug config using clang",
@@ -178,6 +185,13 @@
       }
     },
     {
+      "name": "ci-release-win",
+      "inherits": "dev-release-win",
+      "displayName": "CI release config for windows",
+      "description": "CI release build using msvc",
+      "binaryDir": "build-ci"
+    },
+    {
       "name": "release",
       "condition": {
         "type": "notEquals",
@@ -203,7 +217,7 @@
       "binaryDir": "build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN"
+        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN;NOMINMAX"
       }
     }
   ],
@@ -244,9 +258,19 @@
       "configuration": "Debug"
     },
     {
+      "name": "ci-release-unix",
+      "configurePreset": "ci-release-unix",
+      "configuration": "RelWithDebInfo"
+    },
+    {
       "name": "ci-debug-win",
       "configurePreset": "ci-debug-win",
       "configuration": "Debug"
+    },
+    {
+      "name": "ci-release-win",
+      "configurePreset": "ci-release-win",
+      "configuration": "RelWithDebInfo"
     }
   ],
   "testPresets": [
@@ -254,6 +278,13 @@
       "name": "debug",
       "hidden": true,
       "configuration": "Debug",
+      "output": {"outputOnFailure": true},
+      "execution": {"noTestsAction": "error", "stopOnFailure": true}
+    },
+    {
+      "name": "release",
+      "hidden": true,
+      "configuration": "RelWithDebInfo",
       "output": {"outputOnFailure": true},
       "execution": {"noTestsAction": "error", "stopOnFailure": true}
     },
@@ -296,9 +327,22 @@
       "configurePreset": "ci-tsan"
     },
     {
+      "name": "ci-release-unix",
+      "inherits": "release",
+      "configurePreset": "ci-release-unix"
+    },
+    {
       "name": "ci-debug-win",
       "inherits": "debug",
       "configurePreset": "ci-debug-win",
+      "filter": {
+        "exclude": { "name": "SignalTest" }
+      }
+    },
+    {
+      "name": "ci-release-win",
+      "inherits": "release",
+      "configurePreset": "ci-release-win",
       "filter": {
         "exclude": { "name": "SignalTest" }
       }

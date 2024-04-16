@@ -37,18 +37,61 @@ auto TLoop::get_scheduler() noexcept -> TLoop::TScheduler {
 }
 
 auto TLoop::run() -> bool {
-    auto stopped = ::uv_run(&UvLoop, UV_RUN_DEFAULT);
-    return stopped != 0;
+    TRunner runner;
+    while (true) {
+        std::unique_lock lock(RunMtx);
+        if (!Running) {
+            auto stopped = RunLocked(lock, UV_RUN_DEFAULT);
+            Runners.WakeupNext();
+            return stopped;
+        } else {
+            Runners.Add(runner);
+            lock.unlock();
+            runner.Wait();
+            lock.lock();
+            Runners.Erase(runner);
+        }
+    }
 }
 
 auto TLoop::run_once() -> bool {
-    auto stopped = ::uv_run(&UvLoop, UV_RUN_ONCE);
-    return stopped != 0;
+    TRunner runner;
+    while (true) {
+        std::unique_lock lock(RunMtx);
+        if (!Running) {
+            auto stopped = RunLocked(lock, UV_RUN_ONCE);
+            Runners.WakeupNext();
+            return stopped;
+        } else {
+            Runners.Add(runner);
+            lock.unlock();
+            runner.Wait();
+            lock.lock();
+            Runners.Erase(runner);
+        }
+    }
 }
 
 auto TLoop::drain() -> bool {
-    auto stopped = ::uv_run(&UvLoop, UV_RUN_NOWAIT);
-    return stopped != 0;
+    TRunner runner;
+    while (true) {
+        std::unique_lock lock(RunMtx);
+        if (!Running) {
+            auto stopped = RunLocked(lock, UV_RUN_NOWAIT);
+            Runners.WakeupNext();
+            return stopped;
+        } else {
+            Runners.Add(runner);
+            lock.unlock();
+            runner.Wait();
+            lock.lock();
+            Runners.Erase(runner);
+        }
+    }
+}
+
+void TLoop::finish() noexcept {
+    ::uv_stop(&UvLoop);
 }
 
 void TLoop::Schedule(NUvExec::TLoop::TOpState& op) noexcept {
@@ -56,20 +99,12 @@ void TLoop::Schedule(NUvExec::TLoop::TOpState& op) noexcept {
     NUvUtil::Fire(Async); // never returns error
 }
 
-void TLoop::Stop() noexcept {
-    ::uv_stop(&UvLoop);
-}
-
 void TLoop::RunnerSteal(TRunner& runner) {
     while (!runner.Finished()) {
         std::unique_lock lock(RunMtx);
         if (!Running) {
             if (runner.AcquireIfNotFinished()) {
-                Running = true;
-                lock.unlock();
-                run();
-                lock.lock();
-                Running = false;
+                RunLocked(lock, UV_RUN_DEFAULT);
             }
             Runners.WakeupNext();
         } else {
@@ -128,6 +163,15 @@ auto tag_invoke(NUvUtil::TRawUvObject, const TLoop& loop) noexcept -> const uv_l
 
 void TLoop::Walk(uv_walk_cb cb, void* arg) {
     ::uv_walk(&UvLoop, cb, arg);
+}
+
+auto TLoop::RunLocked(std::unique_lock<std::mutex>& lock, uv_run_mode mode) -> bool {
+    Running = true;
+    lock.unlock();
+    auto stopped = ::uv_run(&UvLoop, mode);
+    lock.lock();
+    Running = false;
+    return stopped != 0;
 }
 
 void TLoop::TTimer::Init(NUvExec::TLoop& loop) {
