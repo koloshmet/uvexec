@@ -26,6 +26,7 @@
 
 
 using namespace NUvExec;
+using namespace std::literals;
 
 TEST_CASE("Trivial Loop", "[loop]") {
     TLoop uvLoop;
@@ -262,6 +263,33 @@ TEST_CASE("High parallel sync_wait", "[loop][mt]") {
     }
 
     REQUIRE(counter == threadsCount * iterations);
+}
+
+TEST_CASE("Concurrent run and sync_wait", "[loop][mt]") {
+    constexpr int iterations = 1000;
+
+    TLoop uvLoop;
+    int counter{0};
+
+    std::latch barrier(2);
+    auto routine = [&]() {
+        barrier.arrive_and_wait();
+        for (int i = 0; i < iterations; ++i) {
+            stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | stdexec::then([&]() noexcept {
+                ++counter;
+            }));
+        }
+        std::this_thread::sleep_for(50ms);
+        stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | stdexec::then([&]() noexcept {
+            uvLoop.finish();
+        }));
+    };
+    std::thread t(routine);
+    barrier.arrive_and_wait();
+    uvLoop.run();
+    t.join();
+
+    REQUIRE(counter == iterations);
 }
 
 TEST_CASE("Coroutines", "[loop][coro]") {

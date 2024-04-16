@@ -388,7 +388,7 @@ public:
             TRunner runner;
             auto wakeup = [&runner, &loop]() noexcept {
                 if (runner.Acquired()) {
-                    loop.Stop();
+                    loop.finish();
                 }
                 runner.Finish();
             };
@@ -417,16 +417,17 @@ public:
     auto run() -> bool;
     auto run_once() -> bool;
     auto drain() -> bool;
+    void finish() noexcept;
 
     void Schedule(TOpState& op) noexcept;
     void RunnerSteal(TRunner& runner);
-    void Stop() noexcept;
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TLoop& loop) noexcept -> uv_loop_t&;
     friend auto tag_invoke(NUvUtil::TRawUvObject, const TLoop& loop) noexcept -> const uv_loop_t&;
 
 private:
     void Walk(uv_walk_cb cb, void* arg);
+    auto RunLocked(std::unique_lock<std::mutex>& lock, uv_run_mode mode) -> bool;
 
     static void ApplyOpStates(uv_async_t* async);
 

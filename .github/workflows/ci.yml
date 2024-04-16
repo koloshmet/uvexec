@@ -31,6 +31,8 @@ jobs:
         include:
           - os: windows-latest
             preset: ci-debug-win
+          - os: windows-latest
+            preset: ci-release-win
           - os: ubuntu-latest
             preset: ci-debug-unix
           - os: ubuntu-latest
@@ -39,6 +41,8 @@ jobs:
             preset: ci-asan
           - os: ubuntu-latest
             preset: ci-tsan
+          - os: ubuntu-latest
+            preset: ci-release-unix
         exclude:
           - os: windows-latest
             preset: ci-debug-unix
@@ -48,8 +52,12 @@ jobs:
             preset: ci-asan
           - os: windows-latest
             preset: ci-tsan
+          - os: windows-latest
+            preset: ci-release-unix
           - os: ubuntu-latest
             preset: ci-debug-win
+          - os: ubuntu-latest
+            preset: ci-release-win
 
     steps:
     - uses: actions/checkout@v3
