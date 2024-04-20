@@ -138,7 +138,7 @@ public:
 
             auto err = NUvUtil::TimerStart(Timer.UvTimer, AfterCallback, timeout, 0);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(Receiver), err);
+                stdexec::set_error(std::move(Receiver), std::move(err));
             } else {
                 StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(Receiver)), TStopCallback{this});
             }
@@ -216,7 +216,7 @@ public:
             Signal.UvSignal.data = this;
             auto err = NUvUtil::SignalOnce(Signal.UvSignal, SignalCallback, Signum);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(Receiver), err);
+                stdexec::set_error(std::move(Receiver), std::move(err));
             } else {
                 StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(Receiver)), TStopCallback{this});
             }

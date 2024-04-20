@@ -57,6 +57,8 @@ struct TGetLateDomain {
 
 inline constexpr TGetLateDomain GetLateDomain;
 
+struct TFatalOpState {};
+
 template <typename... TArgs>
 using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
 
@@ -126,8 +128,10 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
             auto e = stdexec::get_env(rec);
             auto d = GetLateDomain(p, e);
             return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
-        } else {
+        } else if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        } else {
+            return TFatalOpState{};
         }
     }
 
@@ -166,8 +170,10 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
             auto e = stdexec::get_env(rec);
             auto d = GetLateDomain(p, e);
             return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
-        } else {
+        } else if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        } else {
+            return TFatalOpState{};
         }
     }
 
