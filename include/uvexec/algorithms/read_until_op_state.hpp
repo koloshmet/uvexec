@@ -23,8 +23,7 @@
 
 namespace NUvExec {
 
-template <typename TStream, typename TCondition,
-        stdexec::sender TSender, stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver>
+template <typename TStream, typename TCondition, stdexec::sender TSender, stdexec::receiver TReceiver>
     requires std::is_nothrow_invocable_r_v<bool, TCondition, std::size_t>
 class TReadUntilOpState {
     class TReadUntilReceiver final : public stdexec::receiver_adaptor<TReadUntilReceiver, TReceiver> {

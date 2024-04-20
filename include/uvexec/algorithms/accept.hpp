@@ -24,14 +24,13 @@ template <stdexec::sender TSender>
 class TTcpAcceptSender {
 public:
     using sender_concept = stdexec::sender_t;
-    using TCompletionSignatures = TAlgorithmCompletionSignatures;
 
 public:
     TTcpAcceptSender(TSender sender, TTcpListener& listener, TTcpSocket& socket)
         : Sender(std::move(sender)), Listener{&listener}, Socket{&socket}
     {}
 
-    template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
+    template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TTcpAcceptSender s, TReceiver&& rec) {
         return TTcpListener::TAcceptOpState(
                 *s.Listener, *s.Socket, std::move(s.Sender), std::forward<TReceiver>(rec));
@@ -43,7 +42,8 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TTcpAcceptSender&, const TEnv&) noexcept {
-        return TCompletionSignatures{};
+        return stdexec::make_completion_signatures<TSender, TEnv,
+                TCancellableAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
 private:
@@ -57,7 +57,6 @@ class TTcpAcceptSender<TJustSender<>>
         : public stdexec::sender_adaptor_closure<TTcpAcceptSender<TJustSender<>>> {
 public:
     using sender_concept = stdexec::sender_t;
-    using TCompletionSignatures = TAlgorithmCompletionSignatures;
 
 public:
     TTcpAcceptSender(TJustSender<> sender, TTcpListener& listener, TTcpSocket& socket)
@@ -69,7 +68,7 @@ public:
         return uvexec::accept(std::forward<TSender>(sender), *Listener, *Socket);
     }
 
-    template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
+    template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TTcpAcceptSender s, TReceiver&& rec) {
         return TTcpListener::TAcceptOpState(
                 *s.Listener, *s.Socket, std::move(s.Sender), std::forward<TReceiver>(rec));
@@ -81,7 +80,8 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TTcpAcceptSender&, const TEnv&) noexcept {
-        return TCompletionSignatures{};
+        return stdexec::make_completion_signatures<TJustSender<>, TEnv,
+                TCancellableAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
 private:

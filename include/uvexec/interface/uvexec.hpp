@@ -46,6 +46,9 @@ template <typename TSocketListener>
 using socket_type_t = typename TSocketListener::socket_type;
 
 struct connect_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TEp&& ep) const noexcept(
             std::is_nothrow_invocable_v<connect_t, NUvExec::TJustSender<std::decay_t<TEp>>, TSocket&>) {
@@ -67,6 +70,9 @@ struct connect_t {
 };
 
 struct accept_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
     template <typename TSocketListener>
     stdexec::sender auto operator()(TSocketListener& listener, socket_type_t<TSocketListener>& socket) const noexcept(
             std::is_nothrow_invocable_v<accept_t, NUvExec::TJustSender<>, socket_type_t<TSocketListener>&>) {
@@ -84,6 +90,9 @@ struct accept_t {
 };
 
 struct shutdown_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket>
     stdexec::sender auto operator()(TSocket& socket) const noexcept(
             std::is_nothrow_invocable_v<shutdown_t, NUvExec::TJustSender<>, TSocket&>) {
@@ -100,6 +109,9 @@ struct shutdown_t {
 };
 
 struct close_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket>
     stdexec::sender auto operator()(TSocket& socket) const noexcept(
             std::is_nothrow_invocable_v<close_t, NUvExec::TJustSender<>, TSocket&>) {
@@ -116,6 +128,9 @@ struct close_t {
 };
 
 struct receive_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
     template <typename TSocket, typename TMutableBufferSequence>
     stdexec::sender auto operator()(TSocket& socket, TMutableBufferSequence buffer) const noexcept(
             std::is_nothrow_invocable_v<receive_t, NUvExec::TJustSender<TMutableBufferSequence>, TSocket&>) {
@@ -137,6 +152,9 @@ struct receive_t {
 };
 
 struct read_some_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
     template <typename TSocket, typename TMutableBufferSequence>
     stdexec::sender auto operator()(TSocket& socket, TMutableBufferSequence buffer) const noexcept(
             std::is_nothrow_invocable_v<read_some_t, NUvExec::TJustSender<TMutableBufferSequence>, TSocket&>) {
@@ -158,6 +176,9 @@ struct read_some_t {
 };
 
 struct read_until_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
     template <typename TSocket, typename TMutableBufferSequence, typename TCondition>
         requires std::is_nothrow_invocable_r_v<bool, TCondition, std::size_t>
     stdexec::sender auto operator()(
@@ -186,6 +207,9 @@ struct read_until_t {
 };
 
 struct receive_from_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
     template <typename TSocket, typename TMutableBufferSequence, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TMutableBufferSequence buffers, TEp& ep) const noexcept(
             std::is_nothrow_invocable_v<receive_from_t,
@@ -208,6 +232,9 @@ struct receive_from_t {
 };
 
 struct send_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket, typename TConstBufferSequence>
     stdexec::sender auto operator()(TSocket& socket, TConstBufferSequence buffers) const noexcept(
             std::is_nothrow_invocable_v<send_t, NUvExec::TJustSender<TConstBufferSequence>, TSocket&>) {
@@ -229,6 +256,9 @@ struct send_t {
 };
 
 struct write_some_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket, typename TConstBufferSequence>
     stdexec::sender auto operator()(TSocket& socket, TConstBufferSequence buffers) const noexcept(
             std::is_nothrow_invocable_v<write_some_t, NUvExec::TJustSender<TConstBufferSequence>, TSocket&>) {
@@ -250,6 +280,9 @@ struct write_some_t {
 };
 
 struct send_to_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
+
     template <typename TSocket, typename TConstBufferSequence, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TConstBufferSequence buffers, TEp&& ep) const noexcept(
             std::is_nothrow_invocable_v<send_to_t,

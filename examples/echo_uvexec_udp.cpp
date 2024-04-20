@@ -37,10 +37,10 @@ struct UdpServer {
     UdpServer(UdpServer&&) noexcept = delete;
 
     friend auto tag_invoke(uvexec::drop_t, UdpServer& server) noexcept {
-        return stdexec::let_value(stdexec::just(), [&server]() noexcept {
+        return stdexec::just() | stdexec::let_value([&server]() noexcept {
             server.Scope.request_stop();
-            return server.Scope.on_empty() | uvexec::close(server.Listener);
-        });
+            return server.Scope.on_empty();
+        }) | uvexec::close(server.Listener);
     }
 
     auto accept_datagram() noexcept {
@@ -50,14 +50,9 @@ struct UdpServer {
                             | uvexec::receive_from(Listener)
                             | stdexec::let_value([&](std::size_t n) noexcept {
                                 spawn_accept();
-                                return stdexec::just(std::span(data).first(n), std::ref(peer))
-                                        | uvexec::send_to(Listener)
-                                        | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
-                                            fmt::println(std::cerr,
-                                                    "Server: Unable to send UDP datagram -> {}",
-                                                    ::uv_strerror(e));
-                                        });
+                                return stdexec::just(std::span(data).first(n), std::ref(peer));
                             })
+                            | uvexec::send_to(Listener)
                             | stdexec::upon_error([&](auto e) noexcept {
                                 if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
                                     spawn_accept();

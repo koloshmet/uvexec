@@ -22,17 +22,40 @@
 namespace NUvExec {
 
 struct TGetEarlyDomain {
-    template <stdexec::sender TSender>
-    auto operator()(const TSender& sender) const noexcept {
+    template <stdexec::sender TSender, typename TDefault = stdexec::default_domain>
+    auto operator()(const TSender& sender, TDefault d = {}) const noexcept {
         if constexpr (std::invocable<stdexec::get_domain_t, stdexec::env_of_t<TSender>>) {
             return stdexec::get_domain(stdexec::get_env(sender));
+        } else {
+            return d;
+        }
+    }
+};
+
+inline constexpr TGetEarlyDomain GetEarlyDomain;
+
+struct TGetLateDomain {
+    template <stdexec::sender TSender, typename TEnv>
+    auto operator()(const TSender& sender, const TEnv& env) const noexcept {
+        if constexpr (!std::same_as<stdexec::dependent_domain,
+                std::invoke_result_t<TGetEarlyDomain, const TSender&, stdexec::dependent_domain>>) {
+            return GetEarlyDomain(sender);
+        } else if constexpr (std::invocable<stdexec::get_domain_t, const TEnv&>) {
+            return stdexec::get_domain(env);
+        } else if constexpr (std::invocable<stdexec::get_scheduler_t, const TEnv&>) {
+            if constexpr (std::invocable<
+                    stdexec::get_domain_t, std::invoke_result_t<stdexec::get_scheduler_t, const TEnv&>>) {
+                return stdexec::get_domain(stdexec::get_scheduler(env));
+            } else {
+                return stdexec::default_domain{};
+            }
         } else {
             return stdexec::default_domain{};
         }
     }
 };
 
-inline constexpr TGetEarlyDomain GetEarlyDomain;
+inline constexpr TGetLateDomain GetLateDomain;
 
 template <typename... TArgs>
 using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
@@ -68,13 +91,18 @@ struct TSenderPackageBase {
                         std::move(Data)));
     }
 
+    using TTagValueSignatures = typename TTag::TRequiredValueCompletionSignatures;
+    using TTagStoppedSignatures = typename TTag::TRequiredStoppedCompletionSignatures;
+    template <typename... TArgs>
+    using TFixedSetValue = TTagValueSignatures;
+
     template <typename TEnv>
     auto GetCompSigs(const TEnv&) const noexcept {
         if constexpr (TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             using TTagInvokedSender = std::invoke_result_t<TTagInvokeWithResult, TTupleOfData>;
             return std::invoke_result_t<stdexec::get_completion_signatures_t, const TTagInvokedSender&, const TEnv&>{};
         } else {
-            return stdexec::completion_signatures<>{};
+            return stdexec::make_completion_signatures<TSender, TEnv, TTagStoppedSignatures, TFixedSetValue>{};
         }
     }
 
@@ -92,7 +120,15 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, stdexec::env_of_t<TReceiver>>;
+        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, stdexec::env_of_t<TReceiver>>;
+        if constexpr (!stdexec::same_as<TTransformed, TSenderPackage>) {
+            auto e = stdexec::get_env(rec);
+            auto d = GetLateDomain(p, e);
+            return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
+        } else {
+            return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        }
     }
 
     friend auto tag_invoke(stdexec::get_env_t, const TSenderPackage& p) noexcept {
@@ -101,7 +137,13 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSenderPackage& s, const TEnv& e) noexcept {
-        return s.GetCompSigs(e);
+        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, const TEnv&>;
+        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, TEnv>;
+        if constexpr (!std::same_as<TTransformed, TSenderPackage>) {
+            return stdexec::completion_signatures_of_t<TTransformed, TEnv>{};
+        } else {
+            return s.GetCompSigs(e);
+        }
     }
 };
 
@@ -118,7 +160,15 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, stdexec::env_of_t<TReceiver>>;
+        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, stdexec::env_of_t<TReceiver>>;
+        if constexpr (!stdexec::same_as<TTransformed, TSenderPackage>) {
+            auto e = stdexec::get_env(rec);
+            auto d = GetLateDomain(p, e);
+            return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
+        } else {
+            return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        }
     }
 
     template <stdexec::sender TSender>
@@ -133,7 +183,13 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSenderPackage& s, const TEnv& e) noexcept {
-        return s.GetCompSigs(e);
+        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, const TEnv&>;
+        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, TEnv>;
+        if constexpr (!std::same_as<TTransformed, TSenderPackage>) {
+            return stdexec::completion_signatures_of_t<TTransformed, TEnv>{};
+        } else {
+            return s.GetCompSigs(e);
+        }
     }
 };
 

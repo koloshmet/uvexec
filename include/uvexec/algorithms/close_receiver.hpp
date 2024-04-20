@@ -23,7 +23,7 @@
 
 namespace NUvExec {
 
-template <stdexec::receiver_of<TCloseCompletionSignatures> TReceiver, typename THandle>
+template <stdexec::receiver TReceiver, typename THandle>
 class TCloseReceiver : public stdexec::receiver_adaptor<TCloseReceiver<TReceiver, THandle>, TReceiver> {
     friend stdexec::receiver_adaptor<TCloseReceiver, TReceiver>;
 

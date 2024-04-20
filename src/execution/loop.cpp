@@ -186,6 +186,10 @@ TLoop::TScheduler::TScheduler(TLoop& loop) noexcept
     : Loop{&loop}
 {}
 
+TLoop::TScheduler::TLoopEnv::TLoopEnv(TLoop& loop) noexcept
+        : Loop{&loop}
+{}
+
 TLoop::TScheduler::TEnv::TEnv(TLoop& loop) noexcept
     : Loop{&loop}
 {}
@@ -235,8 +239,12 @@ auto tag_invoke(exec::schedule_at_t,
     return TLoop::TScheduler::TTimedSender<TLoop::ETimerType::At>(*s.Loop, timeout.time_since_epoch());
 }
 
-auto tag_invoke(stdexec::get_scheduler_t, const TLoop::TScheduler::TEnv& env) noexcept -> TLoop::TScheduler {
+auto tag_invoke(stdexec::get_scheduler_t, const TLoop::TScheduler::TLoopEnv& env) noexcept -> TLoop::TScheduler {
     return env.Loop->get_scheduler();
+}
+
+auto tag_invoke(stdexec::get_domain_t, const TLoop::TScheduler::TLoopEnv&) noexcept -> TLoop::TDomain {
+    return {};
 }
 
 auto tag_invoke(stdexec::get_domain_t, const TLoop::TScheduler::TEnv&) noexcept -> TLoop::TDomain {

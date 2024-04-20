@@ -116,13 +116,12 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
-                return exec::finally(
-                        uvexec::connect(socket, addr)
-                        | stdexec::then([&]() noexcept {
-                            connected = true;
-                            std::this_thread::sleep_for(timeout);
-                        })
-                        , uvexec::close(socket));
+                return uvexec::connect(socket, addr)
+                    | stdexec::then([&]() noexcept {
+                        connected = true;
+                        std::this_thread::sleep_for(timeout);
+                    })
+                    | exec::finally(uvexec::close(socket));
             });
 
     std::this_thread::sleep_for(10ms);

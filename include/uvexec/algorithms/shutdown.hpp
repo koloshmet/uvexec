@@ -24,14 +24,13 @@ template <stdexec::sender TSender, typename TStreamSocket>
 class TShutdownSender {
 public:
     using sender_concept = stdexec::sender_t;
-    using TCompletionSignatures = TAlgorithmCompletionSignatures;
 
 public:
     TShutdownSender(TSender sender, TStreamSocket& socket)
         : Sender(std::move(sender)), Socket{&socket}
     {}
 
-    template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
+    template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TShutdownSender s, TReceiver&& rec) {
         return stdexec::connect(
                 std::move(s.Sender), TShutdownReceiver(*s.Socket, std::forward<TReceiver>(rec)));
@@ -43,7 +42,8 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TShutdownSender&, const TEnv&) noexcept {
-        return TCompletionSignatures{};
+        return stdexec::make_completion_signatures<TSender, TEnv,
+                TAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
 private:
@@ -56,7 +56,6 @@ class TShutdownSender<TJustSender<>, TStreamSocket>
         : public stdexec::sender_adaptor_closure<TShutdownSender<TJustSender<>, TStreamSocket>> {
 public:
     using sender_concept = stdexec::sender_t;
-    using TCompletionSignatures = TAlgorithmCompletionSignatures;
 
 public:
     TShutdownSender(TJustSender<> sender, TStreamSocket& socket)
@@ -68,7 +67,7 @@ public:
         return uvexec::shutdown(std::forward<TSender>(sender), *Socket);
     }
 
-    template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
+    template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TShutdownSender s, TReceiver&& rec) {
         return stdexec::connect(s.Sender, TShutdownReceiver(*s.Stream, std::forward<TReceiver>(rec)));
     }
@@ -79,7 +78,8 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TShutdownSender&, const TEnv&) noexcept {
-        return TCompletionSignatures{};
+        return stdexec::make_completion_signatures<TJustSender<>, TEnv,
+                TAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
 private:

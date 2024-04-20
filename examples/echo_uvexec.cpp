@@ -122,17 +122,17 @@ void UvExecEchoServer(int port) {
     stdexec::sync_wait(
             stdexec::schedule(loop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
-                return exec::finally(
-                        RootScope().nest(accept_connection(listener))
+                return RootScope().nest(accept_connection(listener))
                         | stdexec::let_value([&]() noexcept {
-                            return RootScope().on_empty();
-                        }),
-                        stdexec::just()
-                        | stdexec::let_value([&]() noexcept {
-                            RootScope().request_stop();
                             return RootScope().on_empty();
                         })
-                        | uvexec::close(listener));
+                        | exec::finally(
+                                stdexec::just()
+                                | stdexec::let_value([&]() noexcept {
+                                    RootScope().request_stop();
+                                    return RootScope().on_empty();
+                                })
+                                | uvexec::close(listener));
             }));
 
     std::cerr.flush();

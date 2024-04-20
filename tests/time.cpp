@@ -161,11 +161,11 @@ TEST_CASE("Chained after", "[loop][timer]") {
     auto [innerThreadId] = stdexec::sync_wait(
             exec::schedule_after(loop.get_scheduler(), timeout)
             | stdexec::let_value([&]() noexcept {
-                return exec::schedule_after(loop.get_scheduler(), timeout)
-                        | stdexec::then([&]() noexcept {
-                            executed = true;
-                            return std::this_thread::get_id();
-                        });
+                return exec::schedule_after(loop.get_scheduler(), timeout);
+            })
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
             })).value();
 
     REQUIRE(threadId == innerThreadId);
@@ -188,11 +188,11 @@ TEST_CASE("At follows after", "[loop][timer]") {
     auto [innerThreadId] = stdexec::sync_wait(
             exec::schedule_after(loop.get_scheduler(), timeout)
             | stdexec::let_value([&]() noexcept {
-                return exec::schedule_at(loop.get_scheduler(), alarm)
-                        | stdexec::then([&]() noexcept {
-                            executed = true;
-                            return std::this_thread::get_id();
-                        });
+                return exec::schedule_at(loop.get_scheduler(), alarm);
+            })
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
             })).value();
 
     REQUIRE(threadId == innerThreadId);
@@ -216,11 +216,11 @@ TEST_CASE("After follows at", "[loop][timer]") {
     auto [innerThreadId] = stdexec::sync_wait(
             exec::schedule_at(loop.get_scheduler(), alarm)
             | stdexec::let_value([&]() noexcept {
-                return exec::schedule_after(loop.get_scheduler(), timeout)
-                        | stdexec::then([&]() noexcept {
-                            executed = true;
-                            return std::this_thread::get_id();
-                        });
+                return exec::schedule_after(loop.get_scheduler(), timeout);
+            })
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
             })).value();
 
     REQUIRE(threadId == innerThreadId);
@@ -244,19 +244,19 @@ TEST_CASE("When any", "[loop][timer]") {
             stdexec::schedule(loop.get_scheduler()) | stdexec::let_value([&]() noexcept {
                 return exec::when_any(
                         exec::schedule_after(loop.get_scheduler(), timeout)
-                                | stdexec::then([&]() noexcept {
-                                    ++executed;
-                                })
-                                | stdexec::upon_stopped([&]() noexcept {
-                                    ++stopped;
-                                }),
+                        | stdexec::then([&]() noexcept {
+                            ++executed;
+                        })
+                        | stdexec::upon_stopped([&]() noexcept {
+                            ++stopped;
+                        }),
                         exec::schedule_after(loop.get_scheduler(), 2 * timeout)
-                                | stdexec::then([&]() noexcept {
-                                    ++executed;
-                                })
-                                | stdexec::upon_stopped([&]() noexcept {
-                                    ++stopped;
-                                }));
+                        | stdexec::then([&]() noexcept {
+                            ++executed;
+                        })
+                        | stdexec::upon_stopped([&]() noexcept {
+                            ++stopped;
+                        }));
             })).value();
 
     REQUIRE(threadId == std::this_thread::get_id());

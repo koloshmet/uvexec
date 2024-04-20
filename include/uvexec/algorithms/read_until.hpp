@@ -24,9 +24,8 @@ template <stdexec::sender TSender, typename TSocket, typename TCondition>
     requires std::is_nothrow_invocable_r_v<bool, TCondition, std::size_t>
 struct TReadUntilSender {
     using sender_concept = stdexec::sender_t;
-    using TCompletionSignatures = TReadCompletionSignatures;
 
-    template <stdexec::receiver_of<TCompletionSignatures> TReceiver>
+    template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TReadUntilSender s, TReceiver&& rec) {
         return TReadUntilOpState(*s.Socket, std::move(s.Condition), std::move(s.Sender), std::forward<TReceiver>(rec));
     }
@@ -37,7 +36,8 @@ struct TReadUntilSender {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TReadUntilSender&, const TEnv&) noexcept {
-        return TCompletionSignatures{};
+        return stdexec::make_completion_signatures<TSender, TEnv,
+                TCancellableAlgorithmCompletionSignatures, TLengthValueCompletionSignatures>{};
     }
 
     TSender Sender;

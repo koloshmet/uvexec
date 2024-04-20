@@ -20,7 +20,6 @@
 #include "runner.hpp"
 
 #include <uvexec/interface/uvexec.hpp>
-#include <uvexec/algorithms/completion_signatures.hpp>
 #include <exec/timed_scheduler.hpp>
 
 #include <uvexec/uv_util/reqs.hpp>
@@ -65,7 +64,8 @@ public:
     using TScheduleCompletionSignatures = stdexec::completion_signatures<
             stdexec::set_value_t(), stdexec::set_stopped_t()>;
 
-    using TScheduleConditionalCompletionSignatures = TAlgorithmCompletionSignatures;
+    using TScheduleEventuallyCompletionSignatures = stdexec::completion_signatures<
+            stdexec::set_value_t(), stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
 
     struct TOpState {
         virtual void Apply() noexcept = 0;
@@ -114,7 +114,7 @@ public:
         At
     };
 
-    template <stdexec::receiver_of<TScheduleConditionalCompletionSignatures> TReceiver, ETimerType Type>
+    template <stdexec::receiver_of<TScheduleEventuallyCompletionSignatures> TReceiver, ETimerType Type>
     class TTimedScheduleOpState final : public TOpState {
     public:
         TTimedScheduleOpState(TLoop& loop, std::uint64_t timeout, TReceiver&& receiver)
@@ -200,7 +200,7 @@ public:
         std::uint64_t Timeout;
     };
 
-    template <stdexec::receiver_of<TScheduleConditionalCompletionSignatures> TReceiver>
+    template <stdexec::receiver_of<TScheduleEventuallyCompletionSignatures> TReceiver>
     class TSignalScheduleOpState final : public TOpState {
     public:
         TSignalScheduleOpState(TLoop& loop, int signum, TReceiver&& receiver)
@@ -303,8 +303,6 @@ public:
                 return env.Loop->get_scheduler();
             }
 
-            friend auto tag_invoke(stdexec::get_scheduler_t, const TEnv& env) noexcept -> TScheduler;
-
             friend auto tag_invoke(stdexec::get_domain_t, const TEnv& env) noexcept -> TDomain;
 
         private:
@@ -333,7 +331,7 @@ public:
         class TTimedSender {
         public:
             using sender_concept = stdexec::sender_t;
-            using completion_signatures = TScheduleConditionalCompletionSignatures;
+            using completion_signatures = TScheduleEventuallyCompletionSignatures;
 
             explicit TTimedSender(TLoop& loop, std::chrono::milliseconds timeout) noexcept
                 : Timeout(std::max(timeout, std::chrono::milliseconds{0})), Loop{&loop}
@@ -357,7 +355,7 @@ public:
         class TSignalSender {
         public:
             using sender_concept = stdexec::sender_t;
-            using completion_signatures = TScheduleConditionalCompletionSignatures;
+            using completion_signatures = TScheduleEventuallyCompletionSignatures;
 
             explicit TSignalSender(TLoop& loop, int signum) noexcept;
 
@@ -382,7 +380,19 @@ public:
         friend auto tag_invoke(exec::schedule_at_t,
                 TScheduler s, TLoopClock::time_point t) noexcept -> TTimedSender<ETimerType::At>;
 
-        template <stdexec::sender_in<TEnv> TS>
+        class TLoopEnv {
+        public:
+            explicit TLoopEnv(TLoop& loop) noexcept;
+
+            friend auto tag_invoke(stdexec::get_scheduler_t, const TLoopEnv& env) noexcept -> TScheduler;
+
+            friend auto tag_invoke(stdexec::get_domain_t, const TLoopEnv& env) noexcept -> TDomain;
+
+        private:
+            TLoop* Loop;
+        };
+
+        template <stdexec::sender_in<TLoopEnv> TS>
         friend auto tag_invoke(stdexec::sync_wait_t, const TScheduler& sched, TS&& sender) {
             auto& loop = *sched.Loop;
             TRunner runner;
@@ -394,13 +404,14 @@ public:
             };
 
             using TWakeup = decltype(wakeup);
-            using TWaitR = TSyncWaitReceiver<TEnv, TS, TWakeup>;
+            using TWaitR = TSyncWaitReceiver<TLoopEnv, TS, TWakeup>;
 
-            TSyncWaitReceiverState<TEnv, TS, TWakeup> dest;
-            auto op = stdexec::connect(std::forward<TS>(sender), TWaitR(dest, TEnv(*sched.Loop), std::move(wakeup)));
+            TLoopEnv env(*sched.Loop);
+            TSyncWaitReceiverState<TLoopEnv, TS, TWakeup> dest;
+            auto op = stdexec::connect(std::forward<TS>(sender), TWaitR(dest, env, std::move(wakeup)));
             stdexec::start(op);
             sched.Loop->RunnerSteal(runner);
-            return UnwrapSyncWaitReceiverState<TEnv, TS, TWakeup>(std::move(dest));
+            return UnwrapSyncWaitReceiverState<TLoopEnv, TS, TWakeup>(std::move(dest));
         }
 
         friend auto tag_invoke(stdexec::get_forward_progress_guarantee_t, const TScheduler&) noexcept {
