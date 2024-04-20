@@ -5,7 +5,7 @@ include(cmake/CPM.cmake)
 
 # TODO: Find out the minimal possible version of libuv
 set(UVEXEC_UV_VERSION 1.48.0 CACHE STRING "Version of libuv to use")
-set(UVEXEC_STDEXEC_VERSION 08619a4 CACHE STRING "Version of stdexec to use")
+set(UVEXEC_STDEXEC_VERSION 64f2978 CACHE STRING "Version of stdexec to use")
 
 set(UVEXEC_WARNINGS "" CACHE STRING "Warnings for uvexec targets in format appropriate for compiler")
 set(UVEXEC_DEFINITIONS "" CACHE STRING "Additional compile definitions for uvexec targets")
