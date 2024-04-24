@@ -96,7 +96,7 @@ TEST_CASE("Ping pong", "[loop][udp]") {
                 })
                 | uvexec::send_to(socket)
                 | uvexec::close(socket);
-        stdexec::sync_wait(conn).value();
+        stdexec::sync_wait(std::move(conn)).value();
     });
     TLoop uvLoop;
     TUdpSocket socket(uvLoop, TIp4Addr("127.0.0.1", 0));
@@ -122,7 +122,7 @@ TEST_CASE("Ping pong", "[loop][udp]") {
             })
             | uvexec::close(socket);
     std::this_thread::sleep_for(50ms);
-    REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
+    REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();
     REQUIRE(pingReceived);
 }

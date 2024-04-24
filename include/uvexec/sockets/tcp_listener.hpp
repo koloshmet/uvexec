@@ -136,7 +136,7 @@ public:
 
     template <stdexec::sender TSender>
     friend auto tag_invoke(
-            TLoop::TDomain, TSenderPackage<uvexec::close_t, TSender, std::tuple<TTcpListener&>>&& s) noexcept(
+            TLoop::TDomain, TSenderPackage<uvexec::close_t, TSender, std::tuple<TTcpListener&>> s) noexcept(
             std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
         return TCloseSender<std::decay_t<TSender>, TTcpSocket>(std::move(s.Sender), std::get<0>(s.Data).Socket);
     }

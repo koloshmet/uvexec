@@ -44,19 +44,19 @@ private:
 };
 
 template <stdexec::sender TSender>
-auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::close_t, TSender, std::tuple<TUdpSocket&>>&& s) noexcept(
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::close_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
     return TCloseSender<std::decay_t<TSender>, TUdpSocket>(std::move(s.Sender), std::get<0>(s.Data));
 }
 
 template <stdexec::sender TSender>
-auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::send_to_t, TSender, std::tuple<TUdpSocket&>>&& s) noexcept(
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::send_to_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
     return TSendToSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 template <stdexec::sender TSender>
-auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::receive_from_t, TSender, std::tuple<TUdpSocket&>>&& s) noexcept(
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::receive_from_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
     return TReceiveFromSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }

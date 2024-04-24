@@ -279,14 +279,25 @@ public:
     };
 
     struct TDomain {
-        template <typename TSender> requires stdexec::tag_invocable<TDomain, TSender&&>
+        template <stdexec::sender TSender> requires stdexec::tag_invocable<TDomain, TSender&&>
         auto transform_sender(TSender&& s) const noexcept -> stdexec::sender auto {
             return stdexec::tag_invoke(*this, std::forward<TSender>(s));
         }
 
         template <stdexec::sender TSender, typename TEnv> requires stdexec::tag_invocable<TDomain, TSender&&>
         auto transform_sender(TSender&& s, const TEnv&) const noexcept -> stdexec::sender auto {
-            return transform_sender(std::forward<TSender>(s));
+            return this->transform_sender(std::forward<TSender>(s));
+        }
+
+        template <stdexec::sender TSender, typename... TEnvs> requires stdexec::tag_invocable<TDomain, TSender&&>
+        auto transform_sender(TSender&& s, const TEnvs&...) const noexcept -> stdexec::sender auto {
+            return this->transform_sender(std::forward<TSender>(s));
+        }
+
+        template <stdexec::sender TSender, typename... TArgs>
+        auto apply_sender(stdexec::sync_wait_t, TSender&& s, TArgs&&...) const noexcept {
+            auto compSch = stdexec::get_completion_scheduler<stdexec::set_value_t>(stdexec::get_env(s));
+            return stdexec::tag_invoke(stdexec::sync_wait_t{}, compSch, std::forward<TSender>(s));
         }
     };
 

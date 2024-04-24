@@ -57,10 +57,11 @@ struct TGetLateDomain {
 
 inline constexpr TGetLateDomain GetLateDomain;
 
-struct TFatalOpState {};
-
-template <typename... TArgs>
-using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
+struct TFatalOpState {
+    friend void tag_invoke(stdexec::start_t, TFatalOpState&) noexcept {
+        std::terminate();
+    }
+};
 
 template <typename TTag, stdexec::sender TSender, typename TTupleOfData>
 struct TSenderPackageBase {
@@ -122,13 +123,7 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, stdexec::env_of_t<TReceiver>>;
-        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, stdexec::env_of_t<TReceiver>>;
-        if constexpr (!stdexec::same_as<TTransformed, TSenderPackage>) {
-            auto e = stdexec::get_env(rec);
-            auto d = GetLateDomain(p, e);
-            return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
-        } else if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
+        if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
         } else {
             return TFatalOpState{};
@@ -141,15 +136,12 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSenderPackage& s, const TEnv& e) noexcept {
-        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, const TEnv&>;
-        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, TEnv>;
-        if constexpr (!std::same_as<TTransformed, TSenderPackage>) {
-            return stdexec::completion_signatures_of_t<TTransformed, TEnv>{};
-        } else {
-            return s.GetCompSigs(e);
-        }
+        return s.GetCompSigs(e);
     }
 };
+
+template <typename... TArgs>
+using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
 
 template <typename TTag, typename TTupleOfData>
 struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
@@ -164,13 +156,7 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, stdexec::env_of_t<TReceiver>>;
-        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, stdexec::env_of_t<TReceiver>>;
-        if constexpr (!stdexec::same_as<TTransformed, TSenderPackage>) {
-            auto e = stdexec::get_env(rec);
-            auto d = GetLateDomain(p, e);
-            return stdexec::connect(stdexec::transform_sender(d, std::move(p), e), std::forward<TReceiver>(rec));
-        } else if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
+        if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
         } else {
             return TFatalOpState{};
@@ -189,13 +175,7 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSenderPackage& s, const TEnv& e) noexcept {
-        using TDomain = std::invoke_result_t<TGetLateDomain, const TSenderPackage&, const TEnv&>;
-        using TTransformed = stdexec::transform_sender_result_t<TDomain, TSenderPackage, TEnv>;
-        if constexpr (!std::same_as<TTransformed, TSenderPackage>) {
-            return stdexec::completion_signatures_of_t<TTransformed, TEnv>{};
-        } else {
-            return s.GetCompSigs(e);
-        }
+        return s.GetCompSigs(e);
     }
 };
 
