@@ -24,7 +24,7 @@
 namespace NUvExec {
 
 template <typename TSocket, NMeta::IsIn<uvexec::endpoints_of_t<TSocket>> TEndpoint,
-        stdexec::sender TSender, stdexec::receiver_of<TReadCompletionSignatures> TReceiver>
+        stdexec::sender TSender, stdexec::receiver TReceiver>
 class TReceiveFromOpState {
     class TReceiveFromReceiver final : public stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver> {
         friend stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>;

@@ -23,7 +23,7 @@
 
 namespace NUvExec {
 
-template <stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver, typename TStreamSocket>
+template <stdexec::receiver TReceiver, typename TStreamSocket>
 class TConnectReceiver : public stdexec::receiver_adaptor<TConnectReceiver<TReceiver, TStreamSocket>, TReceiver> {
     friend stdexec::receiver_adaptor<TConnectReceiver, TReceiver>;
 

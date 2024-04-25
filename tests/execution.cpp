@@ -207,7 +207,7 @@ TEST_CASE("High parallel schedule", "[loop][mt]") {
     }
     stdexec::sync_wait(
             stdexec::schedule(uvLoop.get_scheduler())
-                    | stdexec::let_value([&]() noexcept {
+            | stdexec::let_value([&]() noexcept {
                 return scope.on_empty();
             }));
 

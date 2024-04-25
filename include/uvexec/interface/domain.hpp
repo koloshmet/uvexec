@@ -22,20 +22,19 @@
 namespace NUvExec {
 
 struct TGetEarlyDomain {
-    template <stdexec::sender TSender>
-    auto operator()(const TSender& sender) const noexcept {
+    template <stdexec::sender TSender, typename TDefault = stdexec::default_domain>
+    auto operator()(const TSender& sender, TDefault d = {}) const noexcept {
         if constexpr (std::invocable<stdexec::get_domain_t, stdexec::env_of_t<TSender>>) {
             return stdexec::get_domain(stdexec::get_env(sender));
         } else {
-            return stdexec::default_domain{};
+            return d;
         }
     }
 };
 
 inline constexpr TGetEarlyDomain GetEarlyDomain;
 
-template <typename... TArgs>
-using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
+struct TFatalOpState {};
 
 template <typename TTag, stdexec::sender TSender, typename TTupleOfData>
 struct TSenderPackageBase {
@@ -68,13 +67,18 @@ struct TSenderPackageBase {
                         std::move(Data)));
     }
 
+    using TTagValueSignatures = typename TTag::TRequiredValueCompletionSignatures;
+    using TTagStoppedSignatures = typename TTag::TRequiredStoppedCompletionSignatures;
+    template <typename... TArgs>
+    using TFixedSetValue = TTagValueSignatures;
+
     template <typename TEnv>
     auto GetCompSigs(const TEnv&) const noexcept {
         if constexpr (TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
             using TTagInvokedSender = std::invoke_result_t<TTagInvokeWithResult, TTupleOfData>;
             return std::invoke_result_t<stdexec::get_completion_signatures_t, const TTagInvokedSender&, const TEnv&>{};
         } else {
-            return stdexec::completion_signatures<>{};
+            return stdexec::make_completion_signatures<TSender, TEnv, TTagStoppedSignatures, TFixedSetValue>{};
         }
     }
 
@@ -92,7 +96,11 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
+            return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        } else {
+            return TFatalOpState{};
+        }
     }
 
     friend auto tag_invoke(stdexec::get_env_t, const TSenderPackage& p) noexcept {
@@ -104,6 +112,9 @@ struct TSenderPackage : public TSenderPackageBase<TTag, TSender, TTupleOfData> {
         return s.GetCompSigs(e);
     }
 };
+
+template <typename... TArgs>
+using TJustSender = std::invoke_result_t<stdexec::just_t, TArgs...>;
 
 template <typename TTag, typename TTupleOfData>
 struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
@@ -118,7 +129,11 @@ struct TSenderPackage<TTag, TJustSender<>, TTupleOfData>
 
     template <stdexec::receiver TReceiver>
     friend auto tag_invoke(stdexec::connect_t, TSenderPackage p, TReceiver&& rec) {
-        return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        if constexpr (p.TagInvocableWith(NMeta::Deduce<TTupleOfData>())) {
+            return stdexec::connect(p.TagInvoke(), std::forward<TReceiver>(rec));
+        } else {
+            return TFatalOpState{};
+        }
     }
 
     template <stdexec::sender TSender>

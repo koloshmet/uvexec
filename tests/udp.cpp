@@ -54,9 +54,9 @@ TEST_CASE("No incoming requests", "[loop][udp]") {
     std::span<std::byte> span(req);
 
     bool accepted{false};
-    auto conn = exec::finally(
-            uvexec::receive_from(listener, span, peer) | stdexec::then([&](std::size_t) noexcept { accepted = true; }),
-            uvexec::close(listener));
+    auto conn = uvexec::receive_from(listener, span, peer)
+            | stdexec::then([&](std::size_t) noexcept { accepted = true; })
+            | exec::finally(uvexec::close(listener));
 
     auto start = std::chrono::steady_clock::now();
     stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
@@ -86,17 +86,17 @@ TEST_CASE("Ping pong", "[loop][udp]") {
 
         auto conn = stdexec::schedule(uvLoop.get_scheduler())
                 | stdexec::let_value([&]() noexcept {
-                    return stdexec::just(std::span(req), std::ref(peer))
-                            | uvexec::receive_from(socket)
-                            | stdexec::let_value([&](std::size_t n) noexcept {
-                                pingReceived = asciiDecode(req) == "Ping";
-                                std::memcpy(req.data(), "Pong", 4);
-                                return stdexec::just(std::span(req), peer);
-                            })
-                            | uvexec::send_to(socket)
-                            | uvexec::close(socket);
-                });
-        stdexec::sync_wait(conn).value();
+                    return stdexec::just(std::span(req), std::ref(peer));
+                })
+                | uvexec::receive_from(socket)
+                | stdexec::let_value([&](std::size_t n) noexcept {
+                    pingReceived = asciiDecode(req) == "Ping";
+                    std::memcpy(req.data(), "Pong", 4);
+                    return stdexec::just(std::span(req), peer);
+                })
+                | uvexec::send_to(socket)
+                | uvexec::close(socket);
+        stdexec::sync_wait(std::move(conn)).value();
     });
     TLoop uvLoop;
     TUdpSocket socket(uvLoop, TIp4Addr("127.0.0.1", 0));
@@ -108,21 +108,21 @@ TEST_CASE("Ping pong", "[loop][udp]") {
     TIp4Addr peer;
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
-                | stdexec::let_value([&]() noexcept {
-                    return stdexec::just(std::span(arr), server)
-                            | uvexec::send_to(socket)
-                            | stdexec::let_value([&]() noexcept {
-                                return stdexec::just(std::span(arr), std::ref(peer));
-                            })
-                            | uvexec::receive_from(socket)
-                            | stdexec::then([&](std::size_t n) noexcept {
-                                REQUIRE(arr.size() == n);
-                                REQUIRE(asciiDecode(arr) == "Pong");
-                            })
-                            | uvexec::close(socket);
-                });
+            | stdexec::let_value([&]() noexcept {
+                return stdexec::just(std::span(arr), server);
+            })
+            | uvexec::send_to(socket)
+            | stdexec::let_value([&]() noexcept {
+                return stdexec::just(std::span(arr), std::ref(peer));
+            })
+            | uvexec::receive_from(socket)
+            | stdexec::then([&](std::size_t n) noexcept {
+                REQUIRE(arr.size() == n);
+                REQUIRE(asciiDecode(arr) == "Pong");
+            })
+            | uvexec::close(socket);
     std::this_thread::sleep_for(50ms);
-    REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
+    REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();
     REQUIRE(pingReceived);
 }

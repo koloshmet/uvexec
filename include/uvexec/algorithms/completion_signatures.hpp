@@ -22,16 +22,15 @@
 
 namespace NUvExec {
 
-using TCloseCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+template <typename... TArgs>
+using TVoidValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
 
-using TAlgorithmCompletionSignatures = stdexec::completion_signatures<
-        stdexec::set_value_t(),
-        stdexec::set_error_t(NUvUtil::TUvError),
-        stdexec::set_stopped_t()>;
+template <typename... TArgs>
+using TLengthValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
 
-using TReadCompletionSignatures = stdexec::completion_signatures<
-        stdexec::set_value_t(std::size_t),
-        stdexec::set_error_t(NUvUtil::TUvError),
-        stdexec::set_stopped_t()>;
+using TAlgorithmCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(NUvUtil::TUvError)>;
+
+using TCancellableAlgorithmCompletionSignatures = stdexec::completion_signatures<
+        stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
 
 }

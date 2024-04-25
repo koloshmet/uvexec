@@ -37,10 +37,10 @@ struct TcpConnection {
     TcpConnection(TcpConnection&&) noexcept = delete;
 
     friend auto tag_invoke(uvexec::drop_t, TcpConnection& connection) noexcept {
-        return stdexec::let_value(stdexec::just(), [&connection]() noexcept {
+        return stdexec::just() | stdexec::let_value([&connection]() noexcept {
             connection.Scope.request_stop();
-            return connection.Scope.on_empty() | uvexec::close(connection.Socket);
-        });
+            return connection.Scope.on_empty();
+        }) | uvexec::close(connection.Socket);
     }
 
     auto process() noexcept {
@@ -70,7 +70,7 @@ struct TcpConnection {
 
     template <stdexec::sender Sender>
     void spawn(Sender&& sender) {
-        Scope.spawn(std::forward<Sender>(sender), uvexec::scheduler_t::TEnv(Socket.Loop()));
+        Scope.spawn(std::forward<Sender>(sender), uvexec::scheduler_t::TLoopEnv(Socket.Loop()));
     }
 
     auto request_stop() noexcept {
@@ -91,10 +91,10 @@ struct TcpServer {
     TcpServer(TcpServer&&) noexcept = delete;
 
     friend auto tag_invoke(uvexec::drop_t, TcpServer& server) noexcept {
-        return stdexec::let_value(stdexec::just(), [&server]() noexcept {
+        return stdexec::just() | stdexec::let_value([&server]() noexcept {
             server.Scope.request_stop();
-            return server.Scope.on_empty() | uvexec::close(server.Listener);
-        });
+            return server.Scope.on_empty();
+        }) | uvexec::close(server.Listener);
     }
 
     auto accept_connection() noexcept {
@@ -121,7 +121,7 @@ struct TcpServer {
     }
 
     void spawn_accept() noexcept {
-        Scope.spawn(accept_connection(), uvexec::scheduler_t::TEnv(Listener.Loop()));
+        Scope.spawn(accept_connection(), uvexec::scheduler_t::TLoopEnv(Listener.Loop()));
     }
 
     auto request_stop() noexcept {
