@@ -18,7 +18,6 @@
 #include "completion_signatures.hpp"
 
 #include <uvexec/uv_util/reqs.hpp>
-#include <uvexec/uv_util/misc.hpp>
 
 #include <span>
 
@@ -26,33 +25,31 @@
 namespace NUvExec {
 
 template <stdexec::receiver TReceiver, typename TSocket>
-class TSendToReceiver : public stdexec::receiver_adaptor<TSendToReceiver<TReceiver, TSocket>, TReceiver> {
-    friend stdexec::receiver_adaptor<TSendToReceiver, TReceiver>;
+class TWriteReceiver : public stdexec::receiver_adaptor<TWriteReceiver<TReceiver, TSocket>, TReceiver> {
+    friend stdexec::receiver_adaptor<TWriteReceiver, TReceiver>;
 
 public:
-    TSendToReceiver(TSocket& socket, TReceiver rec) noexcept
-        : stdexec::receiver_adaptor<TSendToReceiver, TReceiver>(std::move(rec)), Handle{&socket}
+    TWriteReceiver(TSocket& socket, TReceiver rec) noexcept
+        : stdexec::receiver_adaptor<TWriteReceiver, TReceiver>(std::move(rec)), Handle{&socket}
     {}
 
-    template <typename TEp>
-    void set_value(std::span<const uv_buf_t> buffs, const TEp& ep) noexcept {
-        SendReq.data = this;
-        auto err = NUvUtil::Send(SendReq, NUvUtil::RawUvObject(*Handle), buffs, NUvUtil::RawUvObject(ep), SendCallback);
+    void set_value(std::span<const uv_buf_t> buffs) noexcept {
+        WriteReq.data = this;
+        auto err = NUvUtil::Write(WriteReq, NUvUtil::RawUvObject(*Handle), buffs, WriteCallback);
         if (NUvUtil::IsError(err)) {
             stdexec::set_error(std::move(*this).base(), err);
         }
     }
 
-    template <typename TEp>
-    void set_value(std::span<std::byte> buff, const TEp& ep) noexcept {
+    void set_value(std::span<std::byte> buff) noexcept {
         Buf.base = reinterpret_cast<char*>(buff.data());
         Buf.len = buff.size();
-        set_value(std::span(&Buf, 1), ep);
+        set_value(std::span(&Buf, 1));
     }
 
 private:
-    static void SendCallback(uv_udp_send_t* req, NUvUtil::TUvError status) {
-        auto self = static_cast<TSendToReceiver*>(req->data);
+    static void WriteCallback(uv_write_t* req, NUvUtil::TUvError status) {
+        auto self = static_cast<TWriteReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
             stdexec::set_error(std::move(*self).base(), status);
         } else {
@@ -61,7 +58,7 @@ private:
     }
 
 private:
-    uv_udp_send_t SendReq;
+    uv_write_t WriteReq;
     uv_buf_t Buf;
     TSocket* Handle;
 };

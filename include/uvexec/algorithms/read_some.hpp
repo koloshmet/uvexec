@@ -15,28 +15,28 @@
  */
 #pragma once
 
-#include "send_to_receiver.hpp"
+#include "read_some_op_state.hpp"
 
 
 namespace NUvExec {
 
 template <stdexec::sender TSender, typename TSocket>
-struct TSendToSender {
+struct TReadSomeSender {
     using sender_concept = stdexec::sender_t;
 
     template <stdexec::receiver TReceiver>
-    friend auto tag_invoke(stdexec::connect_t, TSendToSender s, TReceiver&& rec) {
-        return stdexec::connect(std::move(s.Sender), TSendToReceiver(*s.Socket, std::forward<TReceiver>(rec)));
+    friend auto tag_invoke(stdexec::connect_t, TReadSomeSender s, TReceiver&& rec) {
+        return TReadSomeOpState(*s.Socket, std::move(s.Sender), std::forward<TReceiver>(rec));
     }
 
-    friend auto tag_invoke(stdexec::get_env_t, const TSendToSender& s) noexcept {
+    friend auto tag_invoke(stdexec::get_env_t, const TReadSomeSender& s) noexcept {
         return stdexec::get_env(s.Sender);
     }
 
     template <typename TEnv>
-    friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSendToSender&, const TEnv&) noexcept {
+    friend auto tag_invoke(stdexec::get_completion_signatures_t, const TReadSomeSender&, const TEnv&) noexcept {
         return stdexec::make_completion_signatures<TSender, TEnv,
-                TAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
+                TCancellableAlgorithmCompletionSignatures, TLengthValueCompletionSignatures>{};
     }
 
     TSender Sender;

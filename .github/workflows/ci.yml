@@ -3,13 +3,9 @@
 name: CI
 
 on:
-  push:
-    branches: [ "main" ]
-    paths-ignore:
-      - 'README.md'
-      - 'LICENSE'
-  pull_request:
-    branches: [ "main" ]
+  workflow_run:
+    workflows: [ 'PreCI' ]
+    types: [ completed ]
 
 jobs:
   build:
@@ -27,27 +23,10 @@ jobs:
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest, windows-latest]
-        preset: [ci-debug-unix, ci-debug-clang, ci-debug-win, ci-asan, ci-tsan]
-        include:
-          - os: windows-latest
-            preset: ci-debug-win
-          - os: windows-latest
-            preset: ci-release-win
-          - os: ubuntu-latest
-            preset: ci-debug-unix
-          - os: ubuntu-latest
-            preset: ci-debug-clang
-          - os: ubuntu-latest
-            preset: ci-asan
-          - os: ubuntu-latest
-            preset: ci-tsan
-          - os: ubuntu-latest
-            preset: ci-release-unix
+        preset: [ci-debug-unix, ci-debug-win, ci-asan, ci-tsan, ci-release-unix, ci-release-win]
         exclude:
           - os: windows-latest
             preset: ci-debug-unix
-          - os: windows-latest
-            preset: ci-debug-clang
           - os: windows-latest
             preset: ci-asan
           - os: windows-latest

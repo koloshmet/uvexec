@@ -43,4 +43,27 @@ struct TSendSender {
     TSocket* Socket;
 };
 
+template <stdexec::sender TSender, typename TSocket>
+struct TSendToSender {
+    using sender_concept = stdexec::sender_t;
+
+    template <stdexec::receiver TReceiver>
+    friend auto tag_invoke(stdexec::connect_t, TSendToSender s, TReceiver&& rec) {
+        return stdexec::connect(std::move(s.Sender), TSendToReceiver(*s.Socket, std::forward<TReceiver>(rec)));
+    }
+
+    friend auto tag_invoke(stdexec::get_env_t, const TSendToSender& s) noexcept {
+        return stdexec::get_env(s.Sender);
+    }
+
+    template <typename TEnv>
+    friend auto tag_invoke(stdexec::get_completion_signatures_t, const TSendToSender&, const TEnv&) noexcept {
+        return stdexec::make_completion_signatures<TSender, TEnv,
+                TAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
+    }
+
+    TSender Sender;
+    TSocket* Socket;
+};
+
 }

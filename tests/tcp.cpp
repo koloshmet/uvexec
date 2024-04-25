@@ -40,7 +40,7 @@ TEST_CASE("Close socket", "[loop][tcp]") {
     TLoop uvLoop;
     TTcpSocket socket(uvLoop);
 
-    stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | uvexec::close(socket));
+    std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | uvexec::close(socket));
 }
 
 TEST_CASE("Bind and close listener", "[loop][tcp]") {
@@ -48,7 +48,7 @@ TEST_CASE("Bind and close listener", "[loop][tcp]") {
     TIp4Addr addr("127.0.0.1", TEST_PORT);
     TTcpListener listener(uvLoop, addr, 1);
 
-    stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | uvexec::close(listener));
+    std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | uvexec::close(listener));
 }
 
 TEST_CASE("No incoming connection", "[loop][tcp]") {
@@ -66,7 +66,7 @@ TEST_CASE("No incoming connection", "[loop][tcp]") {
             uvexec::close(socket) | uvexec::close(listener));
 
     auto start = std::chrono::steady_clock::now();
-    stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
+    std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
                 return exec::when_any(exec::schedule_after(uvLoop.get_scheduler(), timeout), conn);
             })).value();
@@ -103,7 +103,7 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
                 }),
                 uvexec::close(socket) | uvexec::close(listener));
 
-        stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
+        std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
                 | stdexec::let_value([&]() noexcept {
                     return exec::when_any(exec::schedule_after(uvLoop.get_scheduler(), timeout), conn);
                 })).value();
@@ -163,7 +163,7 @@ TEST_CASE("Ping pong", "[loop][tcp]") {
                 | uvexec::close(socket)
                 | uvexec::close(listener);
 
-        stdexec::sync_wait(conn).value();
+        std::ignore = stdexec::sync_wait(conn).value();
     });
     TLoop uvLoop;
     TTcpSocket socket(uvLoop);

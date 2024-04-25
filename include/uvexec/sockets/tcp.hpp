@@ -19,8 +19,8 @@
 
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/algorithms/read_until.hpp>
-#include <uvexec/algorithms/receive.hpp>
-#include <uvexec/algorithms/send.hpp>
+#include <uvexec/algorithms/read_some.hpp>
+#include <uvexec/algorithms/write.hpp>
 #include <uvexec/algorithms/close.hpp>
 #include <uvexec/algorithms/connect.hpp>
 #include <uvexec/algorithms/shutdown.hpp>
@@ -67,25 +67,25 @@ auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::shutdown_t, TSender, std:
 template <stdexec::sender TSender>
 auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::send_t, TSender, std::tuple<TTcpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
-    return TSendSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+    return TWriteSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 template <stdexec::sender TSender>
 auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::write_some_t, TSender, std::tuple<TTcpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
-    return TSendSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+    return TWriteSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 template <stdexec::sender TSender>
 auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::receive_t, TSender, std::tuple<TTcpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
-    return TReceiveSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+    return TReadSomeSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 template <stdexec::sender TSender>
 auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::read_some_t, TSender, std::tuple<TTcpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
-    return TReceiveSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+    return TReadSomeSender<std::decay_t<TSender>, TTcpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 template <stdexec::sender TSender, typename TCondition>

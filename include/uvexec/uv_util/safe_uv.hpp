@@ -42,6 +42,10 @@ int UvTcpInConnect(uv_connect_t* req, uv_tcp_t* tcp, const struct sockaddr_in* a
 
 int UvTcpIn6Connect(uv_connect_t* req, uv_tcp_t* tcp, const struct sockaddr_in6* addr, uv_connect_cb cb);
 
+int UvUdpInConnect(uv_udp_t* udp, const struct sockaddr_in* addr);
+
+int UvUdpIn6Connect(uv_udp_t* udp, const struct sockaddr_in6* addr);
+
 int UvTcpShutdown(uv_shutdown_t* req, uv_tcp_t* tcp, uv_shutdown_cb cb);
 
 int UvTcpReadStart(uv_tcp_t* tcp, uv_alloc_cb acb, uv_read_cb rcb);

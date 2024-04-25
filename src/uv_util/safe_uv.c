@@ -67,6 +67,14 @@ int UvTcpIn6Connect(uv_connect_t* req, uv_tcp_t* tcp, const struct sockaddr_in6*
     return uv_tcp_connect(req, tcp, (const struct sockaddr*)addr, cb);
 }
 
+int UvUdpInConnect(uv_udp_t* udp, const struct sockaddr_in* addr) {
+    return uv_udp_connect(udp, (const struct sockaddr*)addr);
+}
+
+int UvUdpIn6Connect(uv_udp_t* udp, const struct sockaddr_in6* addr) {
+    return uv_udp_connect(udp, (const struct sockaddr*)addr);
+}
+
 int UvTcpShutdown(uv_shutdown_t* req, uv_tcp_t* tcp, uv_shutdown_cb cb) {
     return uv_shutdown(req, (uv_stream_t*)tcp, cb);
 }
