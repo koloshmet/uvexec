@@ -295,7 +295,7 @@ public:
         }
 
         template <stdexec::sender TSender, typename... TArgs>
-        auto apply_sender(stdexec::sync_wait_t, TSender&& s, TArgs&&...) const noexcept {
+        auto apply_sender(stdexec::sync_wait_t, TSender&& s, TArgs&&...) const {
             auto compSch = stdexec::get_completion_scheduler<stdexec::set_value_t>(stdexec::get_env(s));
             return stdexec::tag_invoke(stdexec::sync_wait_t{}, compSch, std::forward<TSender>(s));
         }

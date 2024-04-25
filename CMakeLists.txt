@@ -5,7 +5,7 @@ include(cmake/CPM.cmake)
 
 # TODO: Find out the minimal possible version of libuv
 set(UVEXEC_UV_VERSION 1.48.0 CACHE STRING "Version of libuv to use")
-set(UVEXEC_STDEXEC_VERSION 64f2978 CACHE STRING "Version of stdexec to use")
+set(UVEXEC_STDEXEC_VERSION f9d9459 CACHE STRING "Version of stdexec to use")
 
 set(UVEXEC_WARNINGS "" CACHE STRING "Warnings for uvexec targets in format appropriate for compiler")
 set(UVEXEC_DEFINITIONS "" CACHE STRING "Additional compile definitions for uvexec targets")
@@ -13,12 +13,7 @@ set(UVEXEC_DEFINITIONS "" CACHE STRING "Additional compile definitions for uvexe
 option(UVEXEC_ENABLE_SANITIZERS "Enable sanitizers for all targets" OFF)
 if (UVEXEC_ENABLE_SANITIZERS)
     set(UVEXEC_SANITIZE -fsanitize=undefined CACHE STRING "Sanitizer in format -fsanitize=undefined")
-    set_property(CACHE UVEXEC_SANITIZE PROPERTY STRINGS
-            -fsanitize=undefined
-            -fsanitize=address
-            -fsanitize=thread
-            -fsanitize=memory)
-
+    set_property(CACHE UVEXEC_SANITIZE PROPERTY STRINGS -fsanitize=undefined -fsanitize=address -fsanitize=thread)
     add_compile_options(${UVEXEC_SANITIZE})
     add_link_options(${UVEXEC_SANITIZE})
 endif ()

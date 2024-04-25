@@ -34,34 +34,7 @@ struct TGetEarlyDomain {
 
 inline constexpr TGetEarlyDomain GetEarlyDomain;
 
-struct TGetLateDomain {
-    template <stdexec::sender TSender, typename TEnv>
-    auto operator()(const TSender& sender, const TEnv& env) const noexcept {
-        if constexpr (!std::same_as<stdexec::dependent_domain,
-                std::invoke_result_t<TGetEarlyDomain, const TSender&, stdexec::dependent_domain>>) {
-            return GetEarlyDomain(sender);
-        } else if constexpr (std::invocable<stdexec::get_domain_t, const TEnv&>) {
-            return stdexec::get_domain(env);
-        } else if constexpr (std::invocable<stdexec::get_scheduler_t, const TEnv&>) {
-            if constexpr (std::invocable<
-                    stdexec::get_domain_t, std::invoke_result_t<stdexec::get_scheduler_t, const TEnv&>>) {
-                return stdexec::get_domain(stdexec::get_scheduler(env));
-            } else {
-                return stdexec::default_domain{};
-            }
-        } else {
-            return stdexec::default_domain{};
-        }
-    }
-};
-
-inline constexpr TGetLateDomain GetLateDomain;
-
-struct TFatalOpState {
-    friend void tag_invoke(stdexec::start_t, TFatalOpState&) noexcept {
-        std::terminate();
-    }
-};
+struct TFatalOpState {};
 
 template <typename TTag, stdexec::sender TSender, typename TTupleOfData>
 struct TSenderPackageBase {
