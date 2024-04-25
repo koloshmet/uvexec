@@ -35,10 +35,19 @@ public:
     template <typename TEp>
     void set_value(const TEp& ep) noexcept {
         ConnectReq.data = this;
-        auto err = NUvUtil::Connect(
-                ConnectReq, NUvUtil::RawUvObject(*Socket), NUvUtil::RawUvObject(ep), ConnectCallback);
-        if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(*this).base(), err);
+        auto& socket = NUvUtil::RawUvObject(*Socket);
+        if constexpr (std::same_as<decltype(socket), uv_udp_t&>) {
+            auto err = NUvUtil::Connect(socket, NUvUtil::RawUvObject(ep));
+            if (NUvUtil::IsError(err)) {
+                stdexec::set_error(std::move(*this).base(), err);
+            } else {
+                stdexec::set_value(std::move(*this).base());
+            }
+        } else {
+            auto err = NUvUtil::Connect(ConnectReq, socket, NUvUtil::RawUvObject(ep), ConnectCallback);
+            if (NUvUtil::IsError(err)) {
+                stdexec::set_error(std::move(*this).base(), err);
+            }
         }
     }
 

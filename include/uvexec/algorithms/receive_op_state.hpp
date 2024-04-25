@@ -23,25 +23,25 @@
 
 namespace NUvExec {
 
-template <typename TStream, stdexec::sender TSender, stdexec::receiver TReceiver>
+template <typename TSocket, stdexec::sender TSender, stdexec::receiver TReceiver>
 class TReceiveOpState {
-    class TReceiveReceiver final : public stdexec::receiver_adaptor<TReceiveReceiver, TReceiver> {
-        friend stdexec::receiver_adaptor<TReceiveReceiver, TReceiver>;
+    class TReceiveFromReceiver final : public stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver> {
+        friend stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>;
 
     public:
-        TReceiveReceiver(TReceiveOpState& op, TReceiver&& rec) noexcept
-            : stdexec::receiver_adaptor<TReceiveReceiver, TReceiver>(std::move(rec)), Op{&op}
+        TReceiveFromReceiver(TReceiveOpState& op, TReceiver&& rec) noexcept
+            : stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>(std::move(rec)), Op{&op}
         {}
 
         void set_value(std::span<std::byte> buff) noexcept {
             Op->Buf = buff;
-            StartRead();
+            StartReceive();
         }
 
     private:
-        void StartRead() noexcept {
-            NUvUtil::RawUvObject(*Op->Stream).data = Op;
-            auto err = NUvUtil::ReadStart(NUvUtil::RawUvObject(*Op->Stream), AllocateBuf, ReadCallback);
+        void StartReceive() noexcept {
+            NUvUtil::RawUvObject(*Op->Socket).data = Op;
+            auto err = NUvUtil::ReceiveStart(NUvUtil::RawUvObject(*Op->Socket), AllocateBuf, ReceiveCallback);
             if (NUvUtil::IsError(err)) {
                 stdexec::set_error(std::move(*this).base(), err);
             } else {
@@ -54,12 +54,12 @@ class TReceiveOpState {
         TReceiveOpState* Op;
     };
 
-    using TOpState = stdexec::connect_result_t<TSender, TReceiveReceiver>;
+    using TOpState = stdexec::connect_result_t<TSender, TReceiveFromReceiver>;
 
 public:
-    TReceiveOpState(TStream& stream, TSender&& sender, TReceiver receiver) noexcept
-        : Op(stdexec::connect(std::move(sender), TReceiveReceiver(*this, std::move(receiver))))
-        , Stream{&stream}
+    TReceiveOpState(TSocket& socket, TSender&& sender, TReceiver receiver) noexcept
+        : Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
+        , Socket{&socket}
         , StopOp(*this)
     {}
 
@@ -69,7 +69,7 @@ public:
 
     void Stop() noexcept {
         if (!Used.test_and_set(std::memory_order_relaxed)) {
-            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Stream));
+            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Socket));
             static_cast<TLoop*>(loop.data)->Schedule(StopOp);
         }
     }
@@ -78,7 +78,7 @@ public:
         explicit TStopOp(TReceiveOpState& state) noexcept: State{&state} {}
 
         void Apply() noexcept override {
-            NUvUtil::ReadStop(NUvUtil::RawUvObject(*State->Stream));
+            NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*State->Socket));
             State->StopCallback.reset();
             stdexec::set_stopped(*std::move(State->Receiver));
         }
@@ -97,10 +97,14 @@ public:
     using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
 private:
-    static void ReadCallback(uv_stream_t* tcp, std::ptrdiff_t nrd, const uv_buf_t*) {
-        TReceiveOpState* self = NUvUtil::GetData<TReceiveOpState>(tcp);
+    static void ReceiveCallback(
+            uv_udp_t* udp, std::ptrdiff_t nrd, const uv_buf_t*, const struct sockaddr* addr, unsigned) {
+        if (addr == nullptr && nrd == 0) {
+            return;
+        }
+        auto self = static_cast<TReceiveOpState*>(udp->data);
         if (!self->Used.test_and_set(std::memory_order_relaxed)) {
-            NUvUtil::ReadStop(tcp);
+            NUvUtil::ReceiveStop(*udp);
             self->StopCallback.reset();
             if (nrd < 0) {
                 stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
@@ -110,8 +114,8 @@ private:
         }
     }
 
-    static void AllocateBuf(uv_handle_t* tcp, std::size_t, uv_buf_t* buf) {
-        TReceiveOpState* self = NUvUtil::GetData<TReceiveOpState>(tcp);
+    static void AllocateBuf(uv_handle_t* udp, std::size_t, uv_buf_t* buf) {
+        TReceiveOpState* self = NUvUtil::GetData<TReceiveOpState>(udp);
         buf->base = reinterpret_cast<char*>(self->Buf.data());
         buf->len = self->Buf.size();
     }
@@ -119,7 +123,122 @@ private:
 private:
     TOpState Op;
     std::span<std::byte> Buf;
-    TStream* Stream;
+    TSocket* Socket;
+    std::optional<TReceiver> Receiver;
+    TStopOp StopOp;
+    std::optional<TCallback> StopCallback;
+    std::atomic_flag Used;
+};
+
+template <typename TSocket, NMeta::IsIn<uvexec::endpoints_of_t<TSocket>> TEndpoint,
+        stdexec::sender TSender, stdexec::receiver TReceiver>
+class TReceiveFromOpState {
+    class TReceiveFromReceiver final : public stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver> {
+        friend stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>;
+
+    public:
+        TReceiveFromReceiver(TReceiveFromOpState& op, TReceiver&& rec) noexcept
+            : stdexec::receiver_adaptor<TReceiveFromReceiver, TReceiver>(std::move(rec)), Op{&op}
+        {}
+
+        void set_value(std::span<std::byte> buff, std::reference_wrapper<TEndpoint> ep) noexcept {
+            Op->Buf = buff;
+            Op->Endpoint = &ep.get();
+            StartReceive();
+        }
+
+    private:
+        void StartReceive() noexcept {
+            NUvUtil::RawUvObject(*Op->Socket).data = Op;
+            auto err = NUvUtil::ReceiveStart(NUvUtil::RawUvObject(*Op->Socket), AllocateBuf, ReceiveCallback);
+            if (NUvUtil::IsError(err)) {
+                stdexec::set_error(std::move(*this).base(), err);
+            } else {
+                Op->Receiver.emplace(std::move(*this).base());
+                Op->StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(*Op->Receiver)), TStopCallback{Op});
+            }
+        }
+
+    private:
+        TReceiveFromOpState* Op;
+    };
+
+    using TOpState = stdexec::connect_result_t<TSender, TReceiveFromReceiver>;
+
+public:
+    TReceiveFromOpState(TSocket& socket, TSender&& sender, TReceiver receiver) noexcept
+        : Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
+        , Socket{&socket}
+        , StopOp(*this)
+    {}
+
+    friend void tag_invoke(stdexec::start_t, TReceiveFromOpState& op) noexcept {
+        stdexec::start(op.Op);
+    }
+
+    void Stop() noexcept {
+        if (!Used.test_and_set(std::memory_order_relaxed)) {
+            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Socket));
+            static_cast<TLoop*>(loop.data)->Schedule(StopOp);
+        }
+    }
+
+    struct TStopOp : TLoop::TOpState {
+        explicit TStopOp(TReceiveFromOpState& state) noexcept: State{&state} {}
+
+        void Apply() noexcept override {
+            NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*State->Socket));
+            State->StopCallback.reset();
+            stdexec::set_stopped(*std::move(State->Receiver));
+        }
+
+        TReceiveFromOpState* State;
+    };
+
+    struct TStopCallback {
+        void operator()() const {
+            State->Stop();
+        }
+
+        TReceiveFromOpState* State;
+    };
+
+    using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
+
+private:
+    static void ReceiveCallback(
+            uv_udp_t* udp, std::ptrdiff_t nrd, const uv_buf_t*, const struct sockaddr* addr, unsigned) {
+        if (addr == nullptr && nrd == 0) {
+            return;
+        }
+        auto self = static_cast<TReceiveFromOpState*>(udp->data);
+        if (!self->Used.test_and_set(std::memory_order_relaxed)) {
+            NUvUtil::ReceiveStop(*udp);
+            self->StopCallback.reset();
+            if (nrd < 0) {
+                stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+            } else {
+                auto err = NUvUtil::CopyAddress(addr, NUvUtil::RawUvObject(*self->Endpoint));
+                if (NUvUtil::IsError(err)) {
+                    stdexec::set_error(*std::move(self->Receiver), err);
+                } else {
+                    stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(nrd));
+                }
+            }
+        }
+    }
+
+    static void AllocateBuf(uv_handle_t* udp, std::size_t, uv_buf_t* buf) {
+        TReceiveFromOpState* self = NUvUtil::GetData<TReceiveFromOpState>(udp);
+        buf->base = reinterpret_cast<char*>(self->Buf.data());
+        buf->len = self->Buf.size();
+    }
+
+private:
+    TOpState Op;
+    std::span<std::byte> Buf;
+    TSocket* Socket;
+    TEndpoint* Endpoint;
     std::optional<TReceiver> Receiver;
     TStopOp StopOp;
     std::optional<TCallback> StopCallback;

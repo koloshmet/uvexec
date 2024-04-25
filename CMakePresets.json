@@ -21,7 +21,7 @@
         "rhs": "Windows"
       },
       "cacheVariables": {
-        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic"
+        "UVEXEC_WARNINGS": "-Wall;-Wextra;-Wpedantic;-Wno-unused-parameter"
       }
     },
     {

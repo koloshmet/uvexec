@@ -12,7 +12,37 @@ on:
     branches: [ "main" ]
 
 jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set reusable strings
+        # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build-ci" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        run: >
+          cmake --preset ci-debug-clang -S ${{ github.workspace }}
+
+      - name: Build
+        # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        run: cmake --build --preset ci-debug-clang
+
+      - name: Test
+        working-directory: ${{ github.workspace }}
+        # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest --preset ci-debug-clang
+
   build:
+    needs: prebuild
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -27,27 +57,10 @@ jobs:
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest, windows-latest]
-        preset: [ci-debug-unix, ci-debug-clang, ci-debug-win, ci-asan, ci-tsan]
-        include:
-          - os: windows-latest
-            preset: ci-debug-win
-          - os: windows-latest
-            preset: ci-release-win
-          - os: ubuntu-latest
-            preset: ci-debug-unix
-          - os: ubuntu-latest
-            preset: ci-debug-clang
-          - os: ubuntu-latest
-            preset: ci-asan
-          - os: ubuntu-latest
-            preset: ci-tsan
-          - os: ubuntu-latest
-            preset: ci-release-unix
+        preset: [ci-debug-unix, ci-debug-win, ci-asan, ci-tsan, ci-release-unix, ci-release-win]
         exclude:
           - os: windows-latest
             preset: ci-debug-unix
-          - os: windows-latest
-            preset: ci-debug-clang
           - os: windows-latest
             preset: ci-asan
           - os: windows-latest

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include <uv.h>
+#include <string.h>
 
 void* UvStreamGetData(const uv_stream_t* handle) {
     return uv_handle_get_data((uv_handle_t*)handle);
@@ -65,6 +66,14 @@ int UvTcpInConnect(uv_connect_t* req, uv_tcp_t* tcp, const struct sockaddr_in* a
 
 int UvTcpIn6Connect(uv_connect_t* req, uv_tcp_t* tcp, const struct sockaddr_in6* addr, uv_connect_cb cb) {
     return uv_tcp_connect(req, tcp, (const struct sockaddr*)addr, cb);
+}
+
+int UvUdpInConnect(uv_udp_t* udp, const struct sockaddr_in* addr) {
+    return uv_udp_connect(udp, (const struct sockaddr*)addr);
+}
+
+int UvUdpIn6Connect(uv_udp_t* udp, const struct sockaddr_in6* addr) {
+    return uv_udp_connect(udp, (const struct sockaddr*)addr);
 }
 
 int UvTcpShutdown(uv_shutdown_t* req, uv_tcp_t* tcp, uv_shutdown_cb cb) {

@@ -18,9 +18,10 @@
 #include "addr.hpp"
 
 #include <uvexec/execution/loop.hpp>
-#include <uvexec/algorithms/send_to.hpp>
-#include <uvexec/algorithms/receive_from.hpp>
+#include <uvexec/algorithms/send.hpp>
+#include <uvexec/algorithms/receive.hpp>
 #include <uvexec/algorithms/close.hpp>
+#include <uvexec/algorithms/connect.hpp>
 
 
 namespace NUvExec {
@@ -59,6 +60,24 @@ template <stdexec::sender TSender>
 auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::receive_from_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
         std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
     return TReceiveFromSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+}
+
+template <stdexec::sender TSender>
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::connect_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
+        std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
+    return TConnectSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+}
+
+template <stdexec::sender TSender>
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::receive_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
+        std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
+    return TReceiveSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
+}
+
+template <stdexec::sender TSender>
+auto tag_invoke(TLoop::TDomain, TSenderPackage<uvexec::send_t, TSender, std::tuple<TUdpSocket&>> s) noexcept(
+        std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
+    return TSendSender<std::decay_t<TSender>, TUdpSocket>{std::move(s.Sender), &std::get<0>(s.Data)};
 }
 
 }

@@ -64,6 +64,14 @@ auto Connect(uv_connect_t& req, uv_tcp_t& tcp, const sockaddr_in6& addr, uv_conn
     return ::UvTcpIn6Connect(&req, &tcp, &addr, cb);
 }
 
+auto Connect(uv_udp_t& udp, const sockaddr_in& addr) -> TUvError {
+    return ::UvUdpInConnect(&udp, &addr);
+}
+
+auto Connect(uv_udp_t& udp, const sockaddr_in6& addr) -> TUvError {
+    return ::UvUdpIn6Connect(&udp, &addr);
+}
+
 auto Shutdown(uv_shutdown_t& req, uv_tcp_t& tcp, uv_shutdown_cb cb) -> TUvError {
     return ::UvTcpShutdown(&req, &tcp, cb);
 }
@@ -97,15 +105,19 @@ auto Write(uv_write_t& req, uv_tcp_t& tcp, std::span<const uv_buf_t> bufs, uv_wr
 }
 
 auto Send(
-        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in& addr, uv_udp_send_cb cb)
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, uv_udp_send_cb cb, const sockaddr_in& addr)
     -> TUvError {
     return ::UvUdpInSend(&req, &udp, bufs.data(), static_cast<unsigned>(bufs.size()), &addr, cb);
 }
 
 auto Send(
-        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, const sockaddr_in6& addr, uv_udp_send_cb cb)
+        uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, uv_udp_send_cb cb, const sockaddr_in6& addr)
     -> TUvError {
     return ::UvUdpIn6Send(&req, &udp, bufs.data(), static_cast<unsigned>(bufs.size()), &addr, cb);
+}
+
+auto Send(uv_udp_send_t& req, uv_udp_t& udp, std::span<const uv_buf_t> bufs, uv_udp_send_cb cb) -> TUvError {
+    return ::UvUdpInSend(&req, &udp, bufs.data(), static_cast<unsigned>(bufs.size()), nullptr, cb);
 }
 
 void Close(uv_handle_t* handle, uv_close_cb cb) {
