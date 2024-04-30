@@ -25,6 +25,10 @@
 
 namespace NUvUtil {
 
+auto Init(uv_timer_t& timer, uv_loop_t& loop) -> TUvError;
+
+auto Init(uv_signal_t& signal, uv_loop_t& loop) -> TUvError;
+
 auto Fire(uv_async_t& req) -> TUvError;
 
 auto Now(const uv_loop_t& loop) -> std::uint64_t;

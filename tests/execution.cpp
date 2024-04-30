@@ -17,6 +17,7 @@
 #include <catch2/catch.hpp>
 
 #include <uvexec/execution/loop.hpp>
+#include <uvexec/algorithms/schedule.hpp>
 
 #include <exec/single_thread_context.hpp>
 #include <exec/task.hpp>

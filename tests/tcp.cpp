@@ -19,6 +19,7 @@
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/sockets/tcp_listener.hpp>
 #include <uvexec/algorithms/accept.hpp>
+#include <uvexec/algorithms/after.hpp>
 
 #include <exec/async_scope.hpp>
 #include <exec/when_any.hpp>

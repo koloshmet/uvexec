@@ -33,4 +33,10 @@ using TAlgorithmCompletionSignatures = stdexec::completion_signatures<stdexec::s
 using TCancellableAlgorithmCompletionSignatures = stdexec::completion_signatures<
         stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
 
+using TScheduleCompletionSignatures = stdexec::completion_signatures<
+        stdexec::set_value_t(), stdexec::set_stopped_t()>;
+
+using TScheduleEventuallyCompletionSignatures = stdexec::completion_signatures<
+        stdexec::set_value_t(), stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
+
 }

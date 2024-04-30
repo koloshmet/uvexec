@@ -46,7 +46,7 @@ class TReceiveOpState {
                 stdexec::set_error(std::move(*this).base(), err);
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
-                Op->StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(*Op->Receiver)), TStopCallback{Op});
+                Op->StopOp.Setup();
             }
         }
 
@@ -58,43 +58,17 @@ class TReceiveOpState {
 
 public:
     TReceiveOpState(TSocket& socket, TSender&& sender, TReceiver receiver) noexcept
-        : Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
+        : StopOp(StopCallback,
+                *this,
+                *static_cast<TLoop*>(NUvUtil::GetLoop(NUvUtil::RawUvObject(socket)).data),
+                stdexec::get_stop_token(stdexec::get_env(receiver)))
+        , Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
         , Socket{&socket}
-        , StopOp(*this)
     {}
 
     friend void tag_invoke(stdexec::start_t, TReceiveOpState& op) noexcept {
         stdexec::start(op.Op);
     }
-
-    void Stop() noexcept {
-        if (!Used.test_and_set(std::memory_order_relaxed)) {
-            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Socket));
-            static_cast<TLoop*>(loop.data)->Schedule(StopOp);
-        }
-    }
-
-    struct TStopOp : TLoop::TOpState {
-        explicit TStopOp(TReceiveOpState& state) noexcept: State{&state} {}
-
-        void Apply() noexcept override {
-            NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*State->Socket));
-            State->StopCallback.reset();
-            stdexec::set_stopped(*std::move(State->Receiver));
-        }
-
-        TReceiveOpState* State;
-    };
-
-    struct TStopCallback {
-        void operator()() const {
-            State->Stop();
-        }
-
-        TReceiveOpState* State;
-    };
-
-    using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
 private:
     static void ReceiveCallback(
@@ -103,9 +77,8 @@ private:
             return;
         }
         auto self = static_cast<TReceiveOpState*>(udp->data);
-        if (!self->Used.test_and_set(std::memory_order_relaxed)) {
+        if (!self->StopOp.Reset()) {
             NUvUtil::ReceiveStop(*udp);
-            self->StopCallback.reset();
             if (nrd < 0) {
                 stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
             } else {
@@ -120,14 +93,20 @@ private:
         buf->len = self->Buf.size();
     }
 
+    static void StopCallback(TReceiveOpState& op) noexcept {
+        op.StopOp.ResetUnsafe();
+        NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*op.Socket));
+        stdexec::set_stopped(*std::move(op.Receiver));
+    }
+
+    using TStopToken = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>;
+
 private:
+    TLoop::TStopOperation<TReceiveOpState, TStopToken> StopOp;
     TOpState Op;
     std::span<std::byte> Buf;
     TSocket* Socket;
     std::optional<TReceiver> Receiver;
-    TStopOp StopOp;
-    std::optional<TCallback> StopCallback;
-    std::atomic_flag Used;
 };
 
 template <typename TSocket, NMeta::IsIn<uvexec::endpoints_of_t<TSocket>> TEndpoint,
@@ -155,7 +134,7 @@ class TReceiveFromOpState {
                 stdexec::set_error(std::move(*this).base(), err);
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
-                Op->StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(*Op->Receiver)), TStopCallback{Op});
+                Op->StopOp.Setup();
             }
         }
 
@@ -167,43 +146,17 @@ class TReceiveFromOpState {
 
 public:
     TReceiveFromOpState(TSocket& socket, TSender&& sender, TReceiver receiver) noexcept
-        : Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
+        : StopOp(StopCallback,
+                *this,
+                *static_cast<TLoop*>(NUvUtil::GetLoop(NUvUtil::RawUvObject(socket)).data),
+                stdexec::get_stop_token(stdexec::get_env(receiver)))
+        , Op(stdexec::connect(std::move(sender), TReceiveFromReceiver(*this, std::move(receiver))))
         , Socket{&socket}
-        , StopOp(*this)
     {}
 
     friend void tag_invoke(stdexec::start_t, TReceiveFromOpState& op) noexcept {
         stdexec::start(op.Op);
     }
-
-    void Stop() noexcept {
-        if (!Used.test_and_set(std::memory_order_relaxed)) {
-            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Socket));
-            static_cast<TLoop*>(loop.data)->Schedule(StopOp);
-        }
-    }
-
-    struct TStopOp : TLoop::TOpState {
-        explicit TStopOp(TReceiveFromOpState& state) noexcept: State{&state} {}
-
-        void Apply() noexcept override {
-            NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*State->Socket));
-            State->StopCallback.reset();
-            stdexec::set_stopped(*std::move(State->Receiver));
-        }
-
-        TReceiveFromOpState* State;
-    };
-
-    struct TStopCallback {
-        void operator()() const {
-            State->Stop();
-        }
-
-        TReceiveFromOpState* State;
-    };
-
-    using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
 
 private:
     static void ReceiveCallback(
@@ -212,9 +165,8 @@ private:
             return;
         }
         auto self = static_cast<TReceiveFromOpState*>(udp->data);
-        if (!self->Used.test_and_set(std::memory_order_relaxed)) {
+        if (!self->StopOp.Reset()) {
             NUvUtil::ReceiveStop(*udp);
-            self->StopCallback.reset();
             if (nrd < 0) {
                 stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
             } else {
@@ -234,15 +186,21 @@ private:
         buf->len = self->Buf.size();
     }
 
+    static void StopCallback(TReceiveFromOpState& op) noexcept {
+        op.StopOp.ResetUnsafe();
+        NUvUtil::ReceiveStop(NUvUtil::RawUvObject(*op.Socket));
+        stdexec::set_stopped(*std::move(op.Receiver));
+    }
+
+    using TStopToken = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>;
+
 private:
+    TLoop::TStopOperation<TReceiveFromOpState, TStopToken> StopOp;
     TOpState Op;
     std::span<std::byte> Buf;
     TSocket* Socket;
     TEndpoint* Endpoint;
     std::optional<TReceiver> Receiver;
-    TStopOp StopOp;
-    std::optional<TCallback> StopCallback;
-    std::atomic_flag Used;
 };
 
 }

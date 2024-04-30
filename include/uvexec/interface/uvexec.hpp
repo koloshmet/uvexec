@@ -18,6 +18,7 @@
 #include "domain.hpp"
 #include "closure.hpp"
 
+#include <chrono>
 #include <uvexec/meta/meta.hpp>
 
 
@@ -39,6 +40,62 @@ struct schedule_upon_signal_t {
     }
 };
 
+struct after_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
+    template <typename TRep, typename TPer>
+    stdexec::sender auto operator()(std::chrono::duration<TRep, TPer> timeout) const noexcept(
+            std::is_nothrow_invocable_v<after_t, NUvExec::TJustSender<>, std::chrono::duration<TRep, TPer>>) {
+        return (*this)(stdexec::just(), std::move(timeout));
+    }
+
+    template <stdexec::sender TSender, typename TRep, typename TPer>
+    stdexec::sender auto operator()(TSender&& sender, std::chrono::duration<TRep, TPer> timeout) const noexcept(
+            stdexec::nothrow_tag_invocable<after_t, TSender, std::chrono::duration<TRep, TPer>>) {
+        auto d = NUvExec::GetEarlyDomain(sender);
+        return stdexec::transform_sender(d, NUvExec::MakeSenderPackage<after_t>(
+                std::forward<TSender>(sender), std::tuple(std::move(timeout))));
+    }
+};
+
+struct at_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
+    template <typename TClock, typename TDuration>
+    stdexec::sender auto operator()(std::chrono::time_point<TClock, TDuration> timeout) const noexcept(
+            std::is_nothrow_invocable_v<at_t, NUvExec::TJustSender<>, std::chrono::time_point<TClock, TDuration>>) {
+        return (*this)(stdexec::just(), std::move(timeout));
+    }
+
+    template <stdexec::sender TSender, typename TClock, typename TDuration>
+    stdexec::sender auto operator()(TSender&& sender, std::chrono::time_point<TClock, TDuration> timeout) const
+            noexcept(stdexec::nothrow_tag_invocable<at_t, TSender, std::chrono::time_point<TClock, TDuration>>) {
+        auto d = NUvExec::GetEarlyDomain(sender);
+        return stdexec::transform_sender(d, NUvExec::MakeSenderPackage<at_t>(
+                std::forward<TSender>(sender), std::tuple(std::move(timeout))));
+    }
+};
+
+struct upon_signal_t {
+    using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
+    using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
+
+    template <typename TSignal>
+    stdexec::sender auto operator()(TSignal signal) const noexcept(
+            std::is_nothrow_invocable_v<upon_signal_t, NUvExec::TJustSender<>, TSignal>) {
+        return (*this)(stdexec::just(), std::move(signal));
+    }
+
+    template <stdexec::sender TSender, typename TSignal>
+    stdexec::sender auto operator()(TSender&& sender, TSignal signal) const noexcept(
+            stdexec::nothrow_tag_invocable<upon_signal_t, TSender, TSignal>) {
+        auto d = NUvExec::GetEarlyDomain(sender);
+        return stdexec::transform_sender(d, NUvExec::MakeSenderPackage<upon_signal_t>(
+                std::forward<TSender>(sender), std::tuple(std::move(signal))));
+    }
+};
 
 template <typename TSocket>
 using endpoints_of_t = typename TSocket::endpoints;
@@ -307,8 +364,13 @@ struct send_to_t {
 // Generic async destructor
 inline constexpr drop_t drop;
 
+// Timers
+inline constexpr after_t after;
+inline constexpr at_t at;
+
 // Signal handling
 inline constexpr schedule_upon_signal_t schedule_upon_signal;
+inline constexpr upon_signal_t upon_signal;
 
 // Generic data stream operations
 inline constexpr close_t close;

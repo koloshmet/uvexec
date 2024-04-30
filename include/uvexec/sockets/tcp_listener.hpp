@@ -89,7 +89,7 @@ public:
             }
         }
 
-        struct TStopOp : TLoop::TOpState {
+        struct TStopOp : TLoop::TOperation {
             explicit TStopOp(TAcceptOpState& state) noexcept: State{&state} {}
 
             void Apply() noexcept override {

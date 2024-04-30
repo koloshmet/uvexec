@@ -22,7 +22,7 @@ namespace NUvExec {
 TLoop::TLoop(): Scheduled{}, Running{false} {
     NUvUtil::Assert(::uv_loop_init(&UvLoop));
     UvLoop.data = this;
-    NUvUtil::Assert(::uv_async_init(&UvLoop, &Async, ApplyOpStates));
+    NUvUtil::Assert(::uv_async_init(&UvLoop, &Async, ApplyOperations));
     Async.data = &Scheduled;
 }
 
@@ -94,7 +94,7 @@ void TLoop::finish() noexcept {
     ::uv_stop(&UvLoop);
 }
 
-void TLoop::Schedule(NUvExec::TLoop::TOpState& op) noexcept {
+void TLoop::Schedule(NUvExec::TLoop::TOperation& op) noexcept {
     Scheduled.PushBack(op);
     NUvUtil::Fire(Async); // never returns error
 }
@@ -117,20 +117,20 @@ void TLoop::RunnerSteal(TRunner& runner) {
     }
 }
 
-TLoop::TOpStateList::TOpStateList() noexcept
+TLoop::TOperationList::TOperationList() noexcept
     : Head{nullptr}
 {}
 
-void TLoop::TOpStateList::PushBack(TOpState& op) noexcept {
+void TLoop::TOperationList::PushBack(TOperation& op) noexcept {
     auto curTop = Head.load(std::memory_order_relaxed);
     do {
         op.Next = curTop;
     } while (!Head.compare_exchange_weak(curTop, &op, std::memory_order_release, std::memory_order_relaxed));
 }
 
-auto TLoop::TOpStateList::Grab() noexcept -> TLoop::TOpState* {
+auto TLoop::TOperationList::Grab() noexcept -> TLoop::TOperation* {
     auto opStates = Head.exchange(nullptr, std::memory_order_acquire);
-    TOpState* newTop = nullptr;
+    TOperation* newTop = nullptr;
     auto cur = opStates;
     while (cur != nullptr) {
         auto next = cur->Next;
@@ -141,8 +141,8 @@ auto TLoop::TOpStateList::Grab() noexcept -> TLoop::TOpState* {
     return newTop;
 }
 
-void TLoop::ApplyOpStates(uv_async_t* async) {
-    auto opStates = static_cast<TOpStateList*>(async->data)->Grab();
+void TLoop::ApplyOperations(uv_async_t* async) {
+    auto opStates = static_cast<TOperationList*>(async->data)->Grab();
 
     auto op = opStates;
     while (op != nullptr) {
@@ -174,12 +174,8 @@ auto TLoop::RunLocked(std::unique_lock<std::mutex>& lock, uv_run_mode mode) -> b
     return stopped != 0;
 }
 
-void TLoop::TTimer::Init(NUvExec::TLoop& loop) {
-    NUvUtil::Assert(::uv_timer_init(&loop.UvLoop, &UvTimer));
-}
-
-void TLoop::TSignal::Init(NUvExec::TLoop& loop) {
-    NUvUtil::Assert(::uv_signal_init(&loop.UvLoop, &UvSignal));
+auto TLoop::TDomain::GetLoop(const TLoop::TScheduler& sch) const noexcept -> TLoop& {
+    return *sch.Loop;
 }
 
 TLoop::TScheduler::TScheduler(TLoop& loop) noexcept
@@ -194,49 +190,12 @@ TLoop::TScheduler::TEnv::TEnv(TLoop& loop) noexcept
     : Loop{&loop}
 {}
 
-TLoop::TScheduler::TSender::TSender(TLoop& loop) noexcept
-    : Loop{&loop}
-{}
-
-auto tag_invoke(stdexec::get_env_t, const TLoop::TScheduler::TSender& s) noexcept -> TLoop::TScheduler::TEnv {
-    return TLoop::TScheduler::TEnv(*s.Loop);
-}
-
-TLoop::TScheduler::TSignalSender::TSignalSender(TLoop& loop, int signum) noexcept
-    : Loop{&loop}, Signum{signum}
-{}
-
-auto tag_invoke(stdexec::get_env_t, const TLoop::TScheduler::TSignalSender& s) noexcept -> TLoop::TScheduler::TEnv {
-    return TLoop::TScheduler::TEnv(*s.Loop);
-}
-
 auto tag_invoke(stdexec::get_domain_t, const TLoop::TScheduler&) noexcept -> TLoop::TDomain {
     return {};
 }
 
 auto tag_invoke(exec::now_t, const TLoop::TScheduler& s) noexcept -> std::chrono::time_point<TLoopClock> {
     return TLoopClock::time_point(std::chrono::milliseconds(NUvUtil::Now(NUvUtil::RawUvObject(*s.Loop))));
-}
-
-auto tag_invoke(stdexec::schedule_t, TLoop::TScheduler s) noexcept -> TLoop::TScheduler::TSender {
-    return TLoop::TScheduler::TSender(*s.Loop);
-}
-
-auto tag_invoke(uvexec::schedule_upon_signal_t,
-        TLoop::TScheduler s, int signum) noexcept -> TLoop::TScheduler::TSignalSender {
-    return TLoop::TScheduler::TSignalSender(*s.Loop, signum);
-}
-
-auto tag_invoke(exec::schedule_after_t,
-        TLoop::TScheduler s,
-        TLoopClock::duration timeout) noexcept -> TLoop::TScheduler::TTimedSender<TLoop::ETimerType::After> {
-    return TLoop::TScheduler::TTimedSender<TLoop::ETimerType::After>(*s.Loop, timeout);
-}
-
-auto tag_invoke(exec::schedule_at_t,
-        TLoop::TScheduler s,
-        TLoopClock::time_point timeout) noexcept -> TLoop::TScheduler::TTimedSender<TLoop::ETimerType::At> {
-    return TLoop::TScheduler::TTimedSender<TLoop::ETimerType::At>(*s.Loop, timeout.time_since_epoch());
 }
 
 auto tag_invoke(stdexec::get_scheduler_t, const TLoop::TScheduler::TLoopEnv& env) noexcept -> TLoop::TScheduler {

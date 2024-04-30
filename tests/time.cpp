@@ -17,6 +17,7 @@
 #include <catch2/catch.hpp>
 
 #include <uvexec/execution/loop.hpp>
+#include <uvexec/algorithms/after.hpp>
 
 #include <exec/task.hpp>
 #include <exec/async_scope.hpp>
@@ -45,6 +46,33 @@ TEST_CASE("Trivial after", "[loop][timer]") {
     bool executed{false};
     auto [innerThreadId] = stdexec::sync_wait(
             exec::schedule_after(loop.get_scheduler(), timeout)
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
+            })).value();
+
+    REQUIRE(threadId == innerThreadId);
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
+    REQUIRE(loopStart + timeout <= exec::now(loop.get_scheduler()));
+}
+
+TEST_CASE("Trivial after facade", "[loop][timer]") {
+    constexpr auto timeout = 50ms;
+
+    TLoop loop;
+    auto threadId = std::this_thread::get_id();
+
+    auto start = std::chrono::steady_clock::now();
+    auto loopStart = exec::now(loop.get_scheduler());
+
+    bool executed{false};
+    auto [innerThreadId] = stdexec::sync_wait(
+            stdexec::schedule(loop.get_scheduler())
+            | stdexec::let_value([&]() noexcept {
+                return uvexec::after(timeout);
+            })
             | stdexec::then([&]() noexcept {
                 executed = true;
                 return std::this_thread::get_id();
@@ -123,6 +151,35 @@ TEST_CASE("Trivial at", "[loop][timer]") {
     REQUIRE(loopStart + timeout <= exec::now(loop.get_scheduler()));
 }
 
+TEST_CASE("Trivial at facade", "[loop][timer]") {
+    constexpr auto timeout = 50ms;
+
+    TLoop loop;
+    auto threadId = std::this_thread::get_id();
+
+    auto start = std::chrono::steady_clock::now();
+    auto loopStart = exec::now(loop.get_scheduler());
+
+    auto alarm = exec::now(loop.get_scheduler()) + timeout;
+
+    bool executed{false};
+    auto [innerThreadId] = stdexec::sync_wait(
+            stdexec::schedule(loop.get_scheduler())
+            | stdexec::let_value([&]() noexcept {
+                return uvexec::at(alarm);
+            })
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
+            })).value();
+
+    REQUIRE(threadId == innerThreadId);
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
+    REQUIRE(loopStart + timeout <= exec::now(loop.get_scheduler()));
+}
+
 TEST_CASE("At in the past", "[loop][timer]") {
     constexpr auto delay = 100ms;
 
@@ -174,6 +231,29 @@ TEST_CASE("Chained after", "[loop][timer]") {
     REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now() + 1ms);
 }
 
+TEST_CASE("Chained after with facade", "[loop][timer]") {
+    constexpr auto timeout = 30ms;
+
+    TLoop loop;
+    auto threadId = std::this_thread::get_id();
+
+    auto start = std::chrono::steady_clock::now();
+
+    bool executed{false};
+    auto [innerThreadId] = stdexec::sync_wait(
+            exec::schedule_after(loop.get_scheduler(), timeout)
+            | uvexec::after(timeout)
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
+            })).value();
+
+    REQUIRE(threadId == innerThreadId);
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now() + 1ms);
+}
+
 TEST_CASE("At follows after", "[loop][timer]") {
     constexpr auto timeout = 50ms;
 
@@ -202,6 +282,32 @@ TEST_CASE("At follows after", "[loop][timer]") {
     REQUIRE(start + 2 * timeout > std::chrono::steady_clock::now());
 }
 
+TEST_CASE("At facade follows after", "[loop][timer]") {
+    constexpr auto timeout = 50ms;
+
+    TLoop loop;
+    auto threadId = std::this_thread::get_id();
+
+    auto alarm = exec::now(loop.get_scheduler()) + timeout;
+
+    auto start = std::chrono::steady_clock::now();
+
+    bool executed{false};
+    auto [innerThreadId] = stdexec::sync_wait(
+            exec::schedule_after(loop.get_scheduler(), timeout)
+            | uvexec::at(alarm)
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
+            })).value();
+
+    REQUIRE(threadId == innerThreadId);
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
+    REQUIRE(start + 2 * timeout > std::chrono::steady_clock::now());
+}
+
 TEST_CASE("After follows at", "[loop][timer]") {
     constexpr auto timeout = 30ms;
 
@@ -218,6 +324,31 @@ TEST_CASE("After follows at", "[loop][timer]") {
             | stdexec::let_value([&]() noexcept {
                 return exec::schedule_after(loop.get_scheduler(), timeout);
             })
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                return std::this_thread::get_id();
+            })).value();
+
+    REQUIRE(threadId == innerThreadId);
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+    REQUIRE(start + 2 * timeout <= std::chrono::steady_clock::now() + 1ms);
+}
+
+TEST_CASE("After facade follows at", "[loop][timer]") {
+    constexpr auto timeout = 30ms;
+
+    TLoop loop;
+    auto threadId = std::this_thread::get_id();
+
+    auto alarm = exec::now(loop.get_scheduler()) + timeout;
+
+    auto start = std::chrono::steady_clock::now();
+
+    bool executed{false};
+    auto [innerThreadId] = stdexec::sync_wait(
+            exec::schedule_at(loop.get_scheduler(), alarm)
+            | uvexec::after(timeout)
             | stdexec::then([&]() noexcept {
                 executed = true;
                 return std::this_thread::get_id();

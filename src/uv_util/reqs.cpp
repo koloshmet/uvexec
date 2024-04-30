@@ -20,6 +20,14 @@
 
 namespace NUvUtil {
 
+auto Init(uv_timer_t& timer, uv_loop_t& loop) -> TUvError {
+    return ::uv_timer_init(&loop, &timer);
+}
+
+auto Init(uv_signal_t& signal, uv_loop_t& loop) -> TUvError {
+    return ::uv_signal_init(&loop, &signal);
+}
+
 auto Fire(uv_async_t& req) -> TUvError {
     return ::uv_async_send(&req);
 }

@@ -27,9 +27,7 @@ struct TLoopClock {
     using time_point = std::chrono::time_point<TLoopClock, duration>;
 
     static constexpr bool is_steady = true;
-    [[noreturn]] static time_point now() noexcept { // Non-static, use exec::now(uvLoop.get_scheduler()) instead
-        std::terminate();
-    }
+    static time_point now() noexcept; // Non-static, use exec::now(uvLoop.get_scheduler()) instead
 };
 
 }

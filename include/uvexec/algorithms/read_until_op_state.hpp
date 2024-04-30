@@ -42,7 +42,7 @@ class TReadUntilOpState {
                 stdexec::set_error(std::move(*this).base(), err);
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
-                Op->StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(*Op->Receiver)), TStopCallback{Op});
+                Op->StopOp.Setup();
             }
         }
 
@@ -54,64 +54,36 @@ class TReadUntilOpState {
 
 public:
     TReadUntilOpState(TStream& stream, TCondition condition, TSender&& sender, TReceiver receiver) noexcept
-        : Op(stdexec::connect(std::move(sender), TReadUntilReceiver(*this, std::move(receiver))))
+        : StopOp(StopCallback,
+                *this,
+                *static_cast<TLoop*>(NUvUtil::GetLoop(NUvUtil::RawUvObject(stream)).data),
+                stdexec::get_stop_token(stdexec::get_env(receiver)))
+        , Op(stdexec::connect(std::move(sender), TReadUntilReceiver(*this, std::move(receiver))))
         , Condition(std::move(condition))
         , Stream{&stream}
         , ReadTotal{0}
-        , StopOp(*this)
     {}
 
     friend void tag_invoke(stdexec::start_t, TReadUntilOpState& op) noexcept {
         stdexec::start(op.Op);
     }
 
-    void Stop() noexcept {
-        if (!Used.test_and_set(std::memory_order_relaxed)) {
-            auto& loop = NUvUtil::GetLoop(NUvUtil::RawUvObject(*Stream));
-            static_cast<TLoop*>(loop.data)->Schedule(StopOp);
-        }
-    }
-
-    struct TStopOp : TLoop::TOpState {
-        explicit TStopOp(TReadUntilOpState& state) noexcept: State{&state} {}
-
-        void Apply() noexcept override {
-            NUvUtil::ReadStop(NUvUtil::RawUvObject(*State->Stream));
-            State->StopCallback.reset();
-            stdexec::set_stopped(*std::move(State->Receiver));
-        }
-
-        TReadUntilOpState* State;
-    };
-
-    struct TStopCallback {
-        void operator()() const {
-            State->Stop();
-        }
-
-        TReadUntilOpState* State;
-    };
-
-    using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
-
 private:
     static void ReadCallback(uv_stream_t* tcp, std::ptrdiff_t nrd, const uv_buf_t*) {
         TReadUntilOpState* self = NUvUtil::GetData<TReadUntilOpState>(tcp);
-        if (self->Used.test(std::memory_order_relaxed)) {
+        if (!self->StopOp) {
             return;
         }
         if (nrd < 0) {
-            if (!self->Used.test_and_set(std::memory_order_relaxed)) {
+            if (!self->StopOp.Reset()) {
                 NUvUtil::ReadStop(tcp);
-                self->StopCallback.reset();
                 stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
             }
         } else {
             self->ReadTotal += nrd;
             if (self->Condition(static_cast<std::size_t>(nrd))) {
-                if (!self->Used.test_and_set(std::memory_order_relaxed)) {
+                if (!self->StopOp.Reset()) {
                     NUvUtil::ReadStop(tcp);
-                    self->StopCallback.reset();
                     stdexec::set_value(*std::move(self->Receiver), self->ReadTotal);
                 }
             }
@@ -124,16 +96,22 @@ private:
         buf->len = self->Buf->size();
     }
 
+    static void StopCallback(TReadUntilOpState& op) noexcept {
+        op.StopOp.ResetUnsafe();
+        NUvUtil::ReadStop(NUvUtil::RawUvObject(*op.Stream));
+        stdexec::set_stopped(*std::move(op.Receiver));
+    }
+
+    using TStopToken = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>;
+
 private:
+    TLoop::TStopOperation<TReadUntilOpState, TStopToken> StopOp;
     TOpState Op;
     TCondition Condition;
     std::span<std::byte>* Buf;
     TStream* Stream;
     std::size_t ReadTotal;
     std::optional<TReceiver> Receiver;
-    TStopOp StopOp;
-    std::optional<TCallback> StopCallback;
-    std::atomic_flag Used;
 };
 
 }
