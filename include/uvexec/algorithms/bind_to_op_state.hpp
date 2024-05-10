@@ -47,8 +47,7 @@ class TBindToOpState {
         template <typename TEp>
         void set_value(const TEp& ep) noexcept {
             try {
-                OpState->Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(*this))), ep);
-                OpState->EmplaceAndStartBody(std::move(*this).base());
+                OpState->EmplaceAndStartBody(std::move(*this).base(), ep);
             } catch (...) {
                 stdexec::set_error(std::move(*this).base(), std::current_exception());
             }
@@ -74,8 +73,9 @@ public:
         stdexec::start(std::get<0>(op.OpState));
     }
 
-private:
-    void EmplaceAndStartBody(TReceiver&& rec) {
+    template <typename TEp>
+    void EmplaceAndStartBody(TReceiver&& rec, const TEp& ep) {
+        Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(rec))), ep);
         OpState.template emplace<1>(Lazy([&] {
             return stdexec::connect(
                     exec::finally(

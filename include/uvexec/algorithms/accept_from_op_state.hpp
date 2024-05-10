@@ -125,7 +125,6 @@ public:
         }
     }
 
-private:
     void EmplaceAndStartBody(TReceiver&& rec) {
         OpState.template emplace<2>(Lazy([&] {
             return stdexec::connect(
