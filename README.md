@@ -23,26 +23,28 @@ Below is a simple server that accepts single connection, echoes it and stops.
 #include <uvexec/uvexec.hpp>
 #include <array>
 
-int main() {
+auto main() -> int {
     uvexec::loop_t loop;
-    uvexec::ip_v4_addr_t addr("127.0.0.1", 1329);
-    uvexec::tcp_listener_t listener(loop, addr, 1);
 
-    uvexec::tcp_socket_t socket(loop);
     std::array<std::byte, 1024> data{}; // 1KB buffer
 
     auto server = stdexec::schedule(loop.get_scheduler())
-            | uvexec::accept(listener, socket) // Accepts connection from listener
-            | stdexec::then([&]() noexcept {
-                return std::span(data); // Passes buffer to receive
-            })
-            | uvexec::receive(socket) // Reads from socket to buffer
-            | stdexec::then([&](std::size_t n) noexcept {
-                return std::span(data).first(n); // Passes buffer to send
-            })
-            | uvexec::send(socket) // Replies back
-            | uvexec::close(socket) // Closes connection
-            | uvexec::close(listener); // Stops accepting new connection
+            | stdexec::then([]() {
+                // Passes the address for listening
+                return uvexec::ip_v4_addr_t("127.0.0.1", 1329);
+            }) // Starts to listen to the provided address
+            | uvexec::bind_to([&](uvexec::tcp_listener_t& listener) noexcept {
+                // Waits for an incoming connection and accepts it
+                return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) noexcept {
+                    // Reads from the accepted connection to the provided buffer
+                    return uvexec::receive(socket, std::span(data))
+                            | stdexec::then([&](std::size_t n) noexcept {
+                                // Passes the filled buffer to send
+                                return std::span(data).first(n);
+                            }) // Replies back
+                            | uvexec::send(socket);
+                });
+            });
 
     stdexec::sync_wait(server).value(); // Runs loop
     return 0;

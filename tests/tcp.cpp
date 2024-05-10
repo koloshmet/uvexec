@@ -16,10 +16,11 @@
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
-#include <uvexec/execution/loop.hpp>
-#include <uvexec/sockets/tcp_listener.hpp>
 #include <uvexec/algorithms/accept.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/connect_to.hpp>
+#include <uvexec/algorithms/accept_from.hpp>
+#include <uvexec/algorithms/bind_to.hpp>
 
 #include <exec/async_scope.hpp>
 #include <exec/when_any.hpp>
@@ -65,6 +66,31 @@ TEST_CASE("No incoming connection", "[loop][tcp]") {
     auto conn = exec::finally(
             uvexec::accept(listener, socket) | stdexec::then([&]() noexcept { accepted = true; }),
             uvexec::close(socket) | uvexec::close(listener));
+
+    auto start = std::chrono::steady_clock::now();
+    std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
+            | stdexec::let_value([&]() noexcept {
+                return exec::when_any(exec::schedule_after(uvLoop.get_scheduler(), timeout), conn);
+            })).value();
+
+    REQUIRE(start + timeout <= std::chrono::steady_clock::now() + 1ms);
+    REQUIRE_FALSE(accepted);
+}
+
+TEST_CASE("No incoming connection facade", "[loop][tcp]") {
+    constexpr auto timeout = 50ms;
+
+    TLoop uvLoop;
+    TIp4Addr addr("127.0.0.1", TEST_PORT);
+    TTcpListener listener(uvLoop, addr, 1);
+
+    bool accepted{false};
+    auto conn = exec::finally(
+            uvexec::accept_from(listener, [&](TTcpSocket&) noexcept {
+                accepted = true;
+                return stdexec::just();
+            }),
+            uvexec::close(listener));
 
     auto start = std::chrono::steady_clock::now();
     std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
@@ -192,6 +218,63 @@ TEST_CASE("Ping pong", "[loop][tcp]") {
                     REQUIRE(asciiDecode(arr) == "Pong");
                 })
                 | uvexec::close(socket);
+
+    std::this_thread::sleep_for(50ms);
+    REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
+    serverThread.join();
+    REQUIRE(pingReceived);
+}
+
+TEST_CASE("Ping pong facade", "[loop][tcp]") {
+    auto asciiDecode = [](std::span<const std::byte> encoded) noexcept {
+        return std::string_view(reinterpret_cast<const char*>(encoded.data()), encoded.size());
+    };
+
+    bool pingReceived{false};
+
+    std::thread serverThread([&]{
+        TLoop uvLoop;
+
+        std::array<std::byte, 4> resp{};
+
+        auto conn = stdexec::schedule(uvLoop.get_scheduler())
+                | stdexec::then([]() {
+                    return TIp4Addr("127.0.0.1", TEST_PORT);
+                })
+                | uvexec::bind_to([&](TTcpListener& listener) noexcept {
+                    return uvexec::accept_from(listener, [&](TTcpSocket& socket) {
+                        return uvexec::receive(socket, std::span(resp))
+                               | stdexec::then([&](std::size_t n) noexcept {
+                                    pingReceived = asciiDecode(resp) == "Ping";
+                                    std::memcpy(resp.data(), "Pong", 4);
+                                    return std::span(resp);
+                                })
+                               | uvexec::send(socket);
+                    });
+                });
+
+        std::ignore = stdexec::sync_wait(conn).value();
+    });
+    TLoop uvLoop;
+
+    std::array<std::byte, 4> arr;
+    std::memcpy(arr.data(), "Ping", arr.size());
+
+    auto conn = stdexec::schedule(uvLoop.get_scheduler())
+            | stdexec::then([]() {
+                return TIp4Addr("127.0.0.1", TEST_PORT);
+            })
+            | uvexec::connect_to([&](TTcpSocket& socket) noexcept {
+                return uvexec::send(socket, std::span(arr))
+                        | stdexec::then([&arr]() noexcept {
+                            return std::span(arr);
+                        })
+                        | uvexec::receive(socket)
+                        | stdexec::then([&](std::size_t n) noexcept {
+                            REQUIRE(arr.size() == n);
+                            REQUIRE(asciiDecode(arr) == "Pong");
+                        });
+            });
 
     std::this_thread::sleep_for(50ms);
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());

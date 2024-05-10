@@ -69,6 +69,14 @@ struct TRemoveReferenceWrapper<std::reference_wrapper<T>> {
     using TType = T;
 };
 
+struct TFunctionParameterTypeImpl{
+    template <typename TRet, typename TArg>
+    constexpr auto operator()(TRet(*)(TArg)) -> TArg;
+
+    template <typename TFn>
+    constexpr auto operator()(TFn) -> typename NDetail::TMethodArg<decltype(&TFn::operator())>::TType;
+};
+
 template <typename T, template <typename...> typename TCont, typename... Ts>
 auto BindFront(TDeduce<T>, TDeduce<TCont<Ts...>>) -> TCont<T, Ts...>;
 

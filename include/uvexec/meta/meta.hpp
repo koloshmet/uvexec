@@ -28,6 +28,9 @@ using TDecayedTuple = std::tuple<std::decay_t<Ts>...>;
 template <typename TFn>
 using TMethodArgType = typename NDetail::TMethodArg<TFn>::TType;
 
+template <typename TFn>
+using TFnParameterType = std::invoke_result_t<NDetail::TFunctionParameterTypeImpl, TFn>;
+
 template <typename T>
 using TRemoveReferenceWrapperType = typename NDetail::TRemoveReferenceWrapper<T>::TType;
 
@@ -38,6 +41,9 @@ template <typename TSeek, typename TContainer>
 constexpr std::size_t IndexOf = NDetail::IndexOfImpl(Deduce<TSeek>(), Deduce<TContainer>());
 
 template <typename T, typename TContainer>
-concept IsIn = NDetail::ContainsImpl(Deduce<std::decay_t<T>>(), Deduce<TContainer>());
+concept IsIn = NDetail::ContainsImpl(Deduce<T>(), Deduce<TContainer>());
+
+template <typename T, typename TContainer>
+concept IsInDecayed = NDetail::ContainsImpl(Deduce<std::decay_t<T>>(), Deduce<TContainer>());
 
 }

@@ -21,6 +21,9 @@
 #include "algorithms/schedule.hpp"
 #include "algorithms/after.hpp"
 #include "algorithms/upon_signal.hpp"
+#include "algorithms/bind_to.hpp"
+#include "algorithms/connect_to.hpp"
+#include "algorithms/accept_from.hpp"
 
 #include "algorithms/async_value.hpp"
 

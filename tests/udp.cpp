@@ -19,6 +19,8 @@
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/sockets/udp.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/connect_to.hpp>
+#include <uvexec/algorithms/bind_to.hpp>
 
 #include <exec/async_scope.hpp>
 #include <exec/when_any.hpp>
@@ -214,6 +216,61 @@ TEST_CASE("Ping pong connected", "[loop][udp]") {
                     REQUIRE(asciiDecode(arr) == "Pong");
                 })
                 | uvexec::close(socket);
+    std::this_thread::sleep_for(50ms);
+    REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
+    serverThread.join();
+    REQUIRE(pingReceived);
+}
+
+TEST_CASE("Ping pong connected facade", "[loop][udp]") {
+    auto asciiDecode = [](std::span<const std::byte> encoded) noexcept {
+        return std::string_view(reinterpret_cast<const char*>(encoded.data()), encoded.size());
+    };
+
+    bool pingReceived{false};
+
+    std::thread serverThread([&]{
+        TLoop uvLoop;
+
+        std::array<std::byte, 4> req{};
+
+        TIp4Addr peer;
+
+        auto conn = stdexec::schedule(uvLoop.get_scheduler())
+                | stdexec::then([]() {
+                    return TIp4Addr("127.0.0.1", TEST_PORT);
+                })
+                | uvexec::bind_to([&](TUdpSocket& socket) noexcept {
+                    return uvexec::receive_from(socket, std::span(req), peer)
+                            | stdexec::let_value([&](std::size_t n) noexcept {
+                                pingReceived = asciiDecode(req) == "Ping";
+                                std::memcpy(req.data(), "Pong", 4);
+                                return stdexec::just(std::span(req), peer);
+                            })
+                            | uvexec::send_to(socket);
+                });
+        std::ignore = stdexec::sync_wait(std::move(conn)).value();
+    });
+    TLoop uvLoop;
+
+    std::array<std::byte, 4> arr;
+    std::memcpy(arr.data(), "Ping", arr.size());
+
+    auto conn = stdexec::schedule(uvLoop.get_scheduler())
+            | stdexec::then([]() noexcept {
+                return TIp4Addr("127.0.0.1", TEST_PORT);
+            })
+            | uvexec::connect_to([&](TUdpSocket& socket) noexcept {
+                return uvexec::send(socket, std::span(arr))
+                        | stdexec::then([&arr]() noexcept {
+                            return std::span(arr);
+                        })
+                        | uvexec::receive(socket)
+                        | stdexec::then([&](std::size_t n) noexcept {
+                            REQUIRE(arr.size() == n);
+                            REQUIRE(asciiDecode(arr) == "Pong");
+                        });
+            });
     std::this_thread::sleep_for(50ms);
     REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();

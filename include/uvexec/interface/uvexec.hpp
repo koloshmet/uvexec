@@ -106,7 +106,7 @@ struct connect_t {
     using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
     using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
 
-    template <typename TSocket, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
+    template <typename TSocket, NMeta::IsInDecayed<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TEp&& ep) const noexcept(
             std::is_nothrow_invocable_v<connect_t, NUvExec::TJustSender<std::decay_t<TEp>>, TSocket&>) {
         return (*this)(stdexec::just(std::forward<TEp>(ep)), socket);
@@ -267,7 +267,7 @@ struct receive_from_t {
     using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
     using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<stdexec::set_stopped_t()>;
 
-    template <typename TSocket, typename TMutableBufferSequence, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
+    template <typename TSocket, typename TMutableBufferSequence, NMeta::IsInDecayed<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TMutableBufferSequence buffers, TEp& ep) const noexcept(
             std::is_nothrow_invocable_v<receive_from_t,
                     NUvExec::TJustSender<TMutableBufferSequence, std::reference_wrapper<TEp>>, TSocket&>) {
@@ -340,7 +340,7 @@ struct send_to_t {
     using TRequiredValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t()>;
     using TRequiredStoppedCompletionSignatures = stdexec::completion_signatures<>;
 
-    template <typename TSocket, typename TConstBufferSequence, NMeta::IsIn<endpoints_of_t<TSocket>> TEp>
+    template <typename TSocket, typename TConstBufferSequence, NMeta::IsInDecayed<endpoints_of_t<TSocket>> TEp>
     stdexec::sender auto operator()(TSocket& socket, TConstBufferSequence buffers, TEp&& ep) const noexcept(
             std::is_nothrow_invocable_v<send_to_t,
                     NUvExec::TJustSender<TConstBufferSequence, std::decay_t<TEp>>, TSocket&>) {

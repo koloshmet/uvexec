@@ -30,6 +30,8 @@ using TLengthValueCompletionSignatures = stdexec::completion_signatures<stdexec:
 
 using TAlgorithmCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(NUvUtil::TUvError)>;
 
+using TExceptionCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(std::exception_ptr)>;
+
 using TCancellableAlgorithmCompletionSignatures = stdexec::completion_signatures<
         stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
 
