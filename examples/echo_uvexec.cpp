@@ -116,12 +116,11 @@ auto spawn_accept(uvexec::tcp_listener_t& listener) noexcept -> void {
 
 void UvExecEchoServer(int port) {
     uvexec::loop_t loop;
-    uvexec::ip_v4_addr_t addr("127.0.0.1", port);
-    uvexec::tcp_listener_t listener(loop, addr, 128);
 
     stdexec::sync_wait(
             stdexec::schedule(loop.get_scheduler())
-            | stdexec::let_value([&]() noexcept {
+            | stdexec::then([&port]() { return uvexec::ip_v4_addr_t("127.0.0.1", port); })
+            | uvexec::bind_to([&](uvexec::tcp_listener_t& listener) noexcept {
                 return RootScope().nest(accept_connection(listener))
                         | stdexec::let_value([&]() noexcept {
                             return RootScope().on_empty();
@@ -131,8 +130,7 @@ void UvExecEchoServer(int port) {
                                 | stdexec::let_value([&]() noexcept {
                                     RootScope().request_stop();
                                     return RootScope().on_empty();
-                                })
-                                | uvexec::close(listener));
+                                }));
             }));
 
     std::cerr.flush();
@@ -144,23 +142,18 @@ void UvExecEchoServerStop() {
 
 void UvExecEchoClient(int port, int connections) {
     uvexec::loop_t loop;
-    uvexec::tcp_socket_t socket(loop);
-
-    TIp4Addr dest("127.0.0.1", port);
 
     const char message[] = "Rise and shine";
     std::array<std::byte, sizeof(message) - 1> arr;
     std::memcpy(arr.data(), message, arr.size());
 
     auto conn = stdexec::schedule(loop.get_scheduler())
-            | stdexec::then([&dest]() noexcept { return std::ref(dest); })
-            | uvexec::connect(socket)
-            | stdexec::then([&]() noexcept { return std::span(arr); })
-            | uvexec::send(socket)
-            | stdexec::then([&]() noexcept { return std::span(arr); })
-            | uvexec::receive(socket)
-            | stdexec::then([](std::size_t) noexcept {})
-            | uvexec::close(socket);
+            | stdexec::then([&port]() { return uvexec::ip_v4_addr_t("127.0.0.1", port); })
+            | uvexec::connect_to([&](uvexec::tcp_socket_t& socket) noexcept {
+                return uvexec::send(socket, std::span(arr))
+                        | stdexec::then([&]() noexcept { return std::span(arr); })
+                        | uvexec::receive(socket);
+            });
 
     try {
         stdexec::sync_wait(conn).value();
