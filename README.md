@@ -28,23 +28,24 @@ auto main() -> int {
 
     std::array<std::byte, 1024> data{}; // 1KB buffer
 
-    auto server = stdexec::schedule(loop.get_scheduler())
-            | stdexec::then([]() {
-                // Passes the address for listening
-                return uvexec::ip_v4_addr_t("127.0.0.1", 1329);
-            }) // Starts to listen to the provided address
-            | uvexec::bind_to([&](uvexec::tcp_listener_t& listener) noexcept {
-                // Waits for an incoming connection and accepts it
-                return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) noexcept {
-                    // Reads from the accepted connection to the provided buffer
-                    return uvexec::receive(socket, std::span(data))
-                            | stdexec::then([&](std::size_t n) noexcept {
-                                // Passes the filled buffer to send
-                                return std::span(data).first(n);
-                            }) // Replies back
-                            | uvexec::send(socket);
-                });
+    auto server =
+        stdexec::schedule(loop.get_scheduler())
+        | stdexec::then([]() {
+            // Passes the address for listening
+            return uvexec::ip_v4_addr_t("127.0.0.1", 1329);
+        }) // Starts to listen to the provided address
+        | uvexec::bind_to([&](uvexec::tcp_listener_t& listener) {
+            // Waits for an incoming connection and accepts it
+            return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) {
+                // Reads from the accepted connection to the provided buffer
+                return uvexec::receive(socket, std::span(data))
+                    | stdexec::then([&](std::size_t n) {
+                        // Passes the filled buffer to send
+                        return std::span(data).first(n);
+                    }) // Replies back
+                    | uvexec::send(socket);
             });
+        });
 
     stdexec::sync_wait(server).value(); // Runs loop
     return 0;
