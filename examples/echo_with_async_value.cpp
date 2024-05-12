@@ -142,7 +142,7 @@ auto main() -> int {
             stdexec::schedule(loop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
                 return exec::when_any(
-                        uvexec::schedule_upon_signal(loop.get_scheduler(), SIGINT),
+                        uvexec::upon_signal(SIGINT),
                         stdexec::just(std::ref(loop), std::ref(addr))
                         | uvexec::async_value([&](TcpServer& server) noexcept {
                             return server.Scope.nest(server.accept_connection())

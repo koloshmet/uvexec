@@ -17,6 +17,7 @@
 
 #include "tcp.hpp"
 
+
 namespace NUvExec {
 
 class TTcpListener {
@@ -42,7 +43,7 @@ public:
             void set_value() noexcept {
                 Op->Receiver.emplace(std::move(*this).base());
                 Op->Listener->RegisterAccept(*Op);
-                Op->StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(*Op->Receiver)), TStopCallback{Op});
+                Op->StopOp.Setup();
             }
 
         private:
@@ -53,10 +54,13 @@ public:
 
     public:
         TAcceptOpState(TTcpListener& listener, TTcpSocket& socket, TSender&& sender, TReceiver&& receiver) noexcept
-            : Op(stdexec::connect(std::move(sender), TAcceptReceiver(*this, std::move(receiver))))
+            : StopOp(StopCallback,
+                *this,
+                *static_cast<TLoop*>(NUvUtil::GetLoop(NUvUtil::RawUvObject(socket)).data),
+                stdexec::get_stop_token(stdexec::get_env(receiver)))
+            , Op(stdexec::connect(std::move(sender), TAcceptReceiver(*this, std::move(receiver))))
             , Listener{&listener}
             , Socket{&socket}
-            , StopOp(*this)
         {}
 
         friend void tag_invoke(stdexec::start_t, TAcceptOpState& op) noexcept {
@@ -64,10 +68,9 @@ public:
         }
 
         void Accept() noexcept override {
-            if (Used.test_and_set(std::memory_order_relaxed)) {
+            if (StopOp.Reset()) {
                 return;
             }
-            StopCallback.reset();
             auto err = NUvUtil::Accept(NUvUtil::RawUvObject(*Listener), NUvUtil::RawUvObject(*Socket));
             if (NUvUtil::IsError(err)) {
                 stdexec::set_error(*std::move(Receiver), err);
@@ -76,53 +79,30 @@ public:
             }
         }
         void Error(NUvUtil::TUvError err) noexcept override {
-            if (Used.test_and_set(std::memory_order_relaxed)) {
+            if (StopOp.Reset()) {
                 return;
             }
-            StopCallback.reset();
             stdexec::set_error(*std::move(Receiver), err);
         }
 
-        void Stop() noexcept {
-            if (!Used.test_and_set(std::memory_order_relaxed)) {
-                Listener->Loop().Schedule(StopOp);
-            }
+        static void StopCallback(TAcceptOpState& op) noexcept {
+            op.Listener->AcceptList.Erase(op);
+            op.StopOp.ResetUnsafe();
+            stdexec::set_stopped(*std::move(op.Receiver));
         }
 
-        struct TStopOp : TLoop::TOpState {
-            explicit TStopOp(TAcceptOpState& state) noexcept: State{&state} {}
-
-            void Apply() noexcept override {
-                State->Listener->AcceptList.Erase(*State);
-                State->StopCallback.reset();
-                stdexec::set_stopped(*std::move(State->Receiver));
-            }
-
-            TAcceptOpState* State;
-        };
-
-        struct TStopCallback {
-            void operator()() const {
-                State->Stop();
-            }
-
-            TAcceptOpState* State;
-        };
-
-        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
+        using TStopToken = stdexec::stop_token_of_t<stdexec::env_of_t<TReceiver>>;
 
     private:
+        TLoop::TStopOperation<TAcceptOpState, TStopToken> StopOp;
         TOpState Op;
         TTcpListener* Listener;
         TTcpSocket* Socket;
         std::optional<TReceiver> Receiver;
-        TStopOp StopOp;
-        std::optional<TCallback> StopCallback;
-        std::atomic_flag Used;
     };
 
     template <NMeta::IsIn<endpoints> TEp>
-    TTcpListener(TLoop& loop, const TEp& ep, unsigned short backlog)
+    TTcpListener(TLoop& loop, const TEp& ep, unsigned short backlog = 4096)
         : Socket(loop)
         , AcceptList{}
         , PendingConnections{-static_cast<int>(backlog)}

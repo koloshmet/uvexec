@@ -19,15 +19,15 @@ add_library(uvexec_bench_common INTERFACE)
 target_compile_features(uvexec_bench_common INTERFACE cxx_std_20)
 target_link_libraries(uvexec_bench_common INTERFACE Catch2::Catch2)
 
-add_executable(tcp_bench tcp_bench.cpp)
-target_link_libraries(tcp_bench PRIVATE echo_uvexec echo_uv uvexec_bench_common)
-
 add_executable(schedule_bench schedule_bench.cpp)
 target_link_libraries(schedule_bench PRIVATE uvexec::uvexec uvexec_bench_common)
 
+add_executable(tcp_bench tcp_bench.cpp)
+target_link_libraries(tcp_bench PRIVATE echo_uvexec echo_uv uvexec_bench_common)
 
-add_test(TcpBenchmark tcp_bench)
+
 add_test(ScheduleBenchmark schedule_bench)
+add_test(TcpBenchmark tcp_bench)
 
 
 add_library(uvexec_example_common INTERFACE)

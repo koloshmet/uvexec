@@ -28,13 +28,13 @@ auto NUvUtil::MakeRuntimeError(TUvError uvErr) -> std::runtime_error {
     return std::runtime_error(::uv_strerror(uvErr));
 }
 
-void NUvUtil::Assert(NUvUtil::TUvError uvErr) {
+void NUvUtil::Assert(TUvError uvErr) {
     if (IsError(uvErr)) [[unlikely]] {
         throw MakeRuntimeError(uvErr);
     }
 }
 
-void NUvUtil::Panic(NUvUtil::TUvError uvErr) noexcept {
+void NUvUtil::Panic(TUvError uvErr) noexcept {
     if (IsError(uvErr)) [[unlikely]] {
         std::fprintf(stderr, "Panicked with UV error: %s\n", ::uv_strerror(uvErr));
         std::terminate();

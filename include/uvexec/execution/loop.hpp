@@ -42,256 +42,106 @@ using TCallbackOf = typename stdexec::stop_token_of_t<stdexec::env_of_t<TReceive
 }
 
 class TLoop {
-    struct TTimer {
-        TTimer() = default;
-        void Init(TLoop& loop);
-
-        uv_timer_t UvTimer;
-    };
-
-    struct TSignal {
-        TSignal() = default;
-        void Init(TLoop& loop);
-
-        uv_signal_t UvSignal;
-    };
-
 public:
-    TLoop();
-    TLoop(TLoop&&) noexcept = delete;
-    ~TLoop();
-
-    using TScheduleCompletionSignatures = stdexec::completion_signatures<
-            stdexec::set_value_t(), stdexec::set_stopped_t()>;
-
-    using TScheduleEventuallyCompletionSignatures = stdexec::completion_signatures<
-            stdexec::set_value_t(), stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
-
-    struct TOpState {
+    struct TOperation {
         virtual void Apply() noexcept = 0;
 
-        TOpState* Next{nullptr};
+        TOperation* Next{nullptr};
     };
 
-    class TOpStateList {
+    class TOperationList {
     public:
-        TOpStateList() noexcept;
-        void PushBack(TOpState& op) noexcept;
-        auto Grab() noexcept -> TOpState*;
+        TOperationList() noexcept;
+        void PushBack(TOperation& op) noexcept;
+        auto Grab() noexcept -> TOperation*;
 
     private:
-        std::atomic<TOpState*> Head;
+        std::atomic<TOperation*> Head;
     };
 
-    template <stdexec::receiver_of<TScheduleCompletionSignatures> TReceiver>
-    class TScheduleOpState final : public TOpState {
+    template <typename TOpState, stdexec::stoppable_token TStopToken>
+    class TStopOperation final : public TOperation {
+        using TStopFn = void(*)(TOpState&) noexcept;
+
     public:
-        TScheduleOpState(TLoop& loop, TReceiver&& receiver)
-            : Async{&loop.Async}, Receiver(std::move(receiver))
+        TStopOperation(TStopFn fn, TOpState& opState, TLoop& loop, TStopToken stopToken)
+            : Fn{fn}
+            , State{&opState}
+            , Loop{&loop}
+            , Token(std::move(stopToken))
         {}
 
-        friend void tag_invoke(stdexec::start_t, TScheduleOpState& op) noexcept {
-            auto opList = static_cast<TOpStateList*>(op.Async->data);
-            opList->PushBack(op);
-            NUvUtil::Fire(*op.Async); // never returns error
+        void Setup() noexcept {
+            StopCallback.emplace(std::move(Token), TStopCallback{this});
         }
 
-        void Apply() noexcept override {
-            if (stdexec::get_stop_token(stdexec::get_env(Receiver)).stop_requested()) {
-                stdexec::set_stopped(std::move(Receiver));
-            } else {
-                stdexec::set_value(std::move(Receiver));
-            }
-        }
-
-    private:
-        uv_async_t* Async;
-        TReceiver Receiver;
-    };
-
-    enum class ETimerType {
-        After,
-        At
-    };
-
-    template <stdexec::receiver_of<TScheduleEventuallyCompletionSignatures> TReceiver, ETimerType Type>
-    class TTimedScheduleOpState final : public TOpState {
-    public:
-        TTimedScheduleOpState(TLoop& loop, std::uint64_t timeout, TReceiver&& receiver)
-            : Loop{&loop}, Receiver(std::move(receiver)), StopOp(*this), Timeout{timeout}
-        {}
-
-        friend void tag_invoke(stdexec::start_t, TTimedScheduleOpState& op) noexcept {
-            op.Loop->Schedule(op);
-        }
-
-        void Apply() noexcept override {
-            Timer.Init(*Loop);
-            Timer.UvTimer.data = this;
-            std::uint64_t timeout;
-            if constexpr (Type == ETimerType::At) {
-                auto now = NUvUtil::Now(*Timer.UvTimer.loop);
-                timeout = now > Timeout ? 0 : Timeout - now;
-            } else {
-                timeout = Timeout;
-            }
-
-            auto err = NUvUtil::TimerStart(Timer.UvTimer, AfterCallback, timeout, 0);
-            if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(Receiver), std::move(err));
-            } else {
-                StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(Receiver)), TStopCallback{this});
-            }
-        }
-
-    private:
-        void Stop() noexcept {
+        auto Reset() noexcept -> bool {
             if (!Used.test_and_set(std::memory_order_relaxed)) {
-                Loop->Schedule(StopOp);
+                StopCallback.reset();
+                return false;
             }
+            return true;
         }
 
-        static void AfterCallback(uv_timer_t* timer) {
-            auto opState = static_cast<TTimedScheduleOpState*>(timer->data);
-            if (!opState->Used.test_and_set(std::memory_order_relaxed)) {
-                opState->StopCallback.reset();
-                NUvUtil::Close(*timer, CloseCallback);
+        auto ResetUnsafe() noexcept -> bool {
+            if (StopCallback) {
+                StopCallback.reset();
+                return false;
             }
+            return true;
         }
 
-        static void CloseCallback(uv_handle_t* timer) {
-            auto opState = NUvUtil::GetData<TTimedScheduleOpState>(timer);
-            if (opState->StopCallback) {
-                opState->StopCallback.reset();
-                stdexec::set_stopped(std::move(opState->Receiver));
-            } else {
-                stdexec::set_value(std::move(opState->Receiver));
-            }
+        void Apply() noexcept override {
+            std::invoke(*Fn, *State);
         }
-
-        struct TStopOp : TOpState {
-            explicit TStopOp(TTimedScheduleOpState& state) noexcept: State{&state} {}
-
-            void Apply() noexcept override {
-                NUvUtil::TimerStop(State->Timer.UvTimer);
-                NUvUtil::Close(State->Timer.UvTimer, CloseCallback);
-            }
-
-            TTimedScheduleOpState* State;
-        };
 
         struct TStopCallback {
-            void operator()() const {
-                State->Stop();
+            void operator()() const noexcept {
+                if (!Operation->Used.test_and_set(std::memory_order_relaxed)) {
+                    Operation->Loop->Schedule(*Operation);
+                }
             }
 
-            TTimedScheduleOpState* State;
+            TStopOperation* Operation;
         };
 
-        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
+        explicit operator bool() const noexcept {
+            return !Used.test(std::memory_order_relaxed);
+        }
 
     private:
-        TTimer Timer;
+        using TCallback = typename TStopToken::template callback_type<TStopCallback>;
+
+    private:
+        TStopFn Fn;
+        TOpState* State;
         TLoop* Loop;
-        TReceiver Receiver;
-        TStopOp StopOp;
+        TStopToken Token;
         std::optional<TCallback> StopCallback;
         std::atomic_flag Used;
-        std::uint64_t Timeout;
     };
 
-    template <stdexec::receiver_of<TScheduleEventuallyCompletionSignatures> TReceiver>
-    class TSignalScheduleOpState final : public TOpState {
-    public:
-        TSignalScheduleOpState(TLoop& loop, int signum, TReceiver&& receiver)
-            : Loop{&loop}, Receiver(std::move(receiver)), StopOp(*this), Signum{signum}
-        {}
-
-        friend void tag_invoke(stdexec::start_t, TSignalScheduleOpState& op) noexcept {
-            op.Loop->Schedule(op);
-        }
-
-        void Apply() noexcept override {
-            Signal.Init(*Loop);
-            Signal.UvSignal.data = this;
-            auto err = NUvUtil::SignalOnce(Signal.UvSignal, SignalCallback, Signum);
-            if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(Receiver), std::move(err));
-            } else {
-                StopCallback.emplace(stdexec::get_stop_token(stdexec::get_env(Receiver)), TStopCallback{this});
-            }
-        }
-
-    private:
-        void Stop() noexcept {
-            if (!Used.test_and_set(std::memory_order_relaxed)) {
-                Loop->Schedule(StopOp);
-            }
-        }
-
-        static void SignalCallback(uv_signal_t* signal, int) {
-            auto opState = static_cast<TSignalScheduleOpState*>(signal->data);
-            if (!opState->Used.test_and_set(std::memory_order_relaxed)) {
-                opState->StopCallback.reset();
-                NUvUtil::Close(*signal, CloseCallback);
-            }
-        }
-
-        static void CloseCallback(uv_handle_t* signal) {
-            auto opState = NUvUtil::GetData<TSignalScheduleOpState>(signal);
-            if (opState->StopCallback) {
-                opState->StopCallback.reset();
-                stdexec::set_stopped(std::move(opState->Receiver));
-            } else {
-                stdexec::set_value(std::move(opState->Receiver));
-            }
-        }
-
-        struct TStopOp : TOpState {
-            explicit TStopOp(TSignalScheduleOpState& state) noexcept: State{&state} {}
-
-            void Apply() noexcept override {
-                NUvUtil::SignalStop(State->Signal.UvSignal);
-                NUvUtil::Close(State->Signal.UvSignal, CloseCallback);
-            }
-
-            TSignalScheduleOpState* State;
-        };
-
-        struct TStopCallback {
-            void operator()() const {
-                State->Stop();
-            }
-
-            TSignalScheduleOpState* State;
-        };
-
-        using TCallback = NDetail::TCallbackOf<TReceiver, TStopCallback>;
-
-    private:
-        TSignal Signal;
-        TLoop* Loop;
-        TReceiver Receiver;
-        TStopOp StopOp;
-        std::optional<TCallback> StopCallback;
-        std::atomic_flag Used;
-        int Signum;
-    };
+    class TScheduler;
 
     struct TDomain {
-        template <stdexec::sender TSender> requires stdexec::tag_invocable<TDomain, TSender&&>
+        template <stdexec::sender TSender>
+        static constexpr bool IsDomainCustomized = stdexec::tag_invocable<TDomain, TSender&&>;
+        template <stdexec::sender TSender, typename TEnv>
+        static constexpr bool IsDomainCustomizedWithEnv = stdexec::tag_invocable<TDomain, TSender&&, const TEnv&>;
+
+        template <stdexec::sender TSender> requires IsDomainCustomized<TSender>
         auto transform_sender(TSender&& s) const noexcept -> stdexec::sender auto {
             return stdexec::tag_invoke(*this, std::forward<TSender>(s));
         }
 
-        template <stdexec::sender TSender, typename TEnv> requires stdexec::tag_invocable<TDomain, TSender&&>
-        auto transform_sender(TSender&& s, const TEnv&) const noexcept -> stdexec::sender auto {
-            return this->transform_sender(std::forward<TSender>(s));
-        }
-
-        template <stdexec::sender TSender, typename... TEnvs> requires stdexec::tag_invocable<TDomain, TSender&&>
-        auto transform_sender(TSender&& s, const TEnvs&...) const noexcept -> stdexec::sender auto {
-            return this->transform_sender(std::forward<TSender>(s));
+        template <stdexec::sender TSender, typename TEnv>
+            requires IsDomainCustomizedWithEnv<TSender, TEnv> || IsDomainCustomized<TSender>
+        auto transform_sender(TSender&& s, const TEnv& e) const noexcept -> stdexec::sender auto {
+            if constexpr (IsDomainCustomizedWithEnv<TSender, TEnv>) {
+                return stdexec::tag_invoke(*this, std::forward<TSender>(s), e);
+            } else {
+                return this->transform_sender(std::forward<TSender>(s));
+            }
         }
 
         template <stdexec::sender TSender, typename... TArgs>
@@ -299,9 +149,13 @@ public:
             auto compSch = stdexec::get_completion_scheduler<stdexec::set_value_t>(stdexec::get_env(s));
             return stdexec::tag_invoke(stdexec::sync_wait_t{}, compSch, std::forward<TSender>(s));
         }
+
+        auto GetLoop(const TScheduler& sch) const noexcept -> TLoop&;
     };
 
     class TScheduler {
+        friend struct TLoop::TDomain;
+
     public:
         explicit TScheduler(TLoop& loop) noexcept;
 
@@ -320,83 +174,14 @@ public:
             TLoop* Loop;
         };
 
-        class TSender {
-        public:
-            using sender_concept = stdexec::sender_t;
-            using completion_signatures = TScheduleCompletionSignatures;
-
-            explicit TSender(TLoop& loop) noexcept;
-
-            template <stdexec::receiver_of<completion_signatures> TReceiver>
-            friend auto tag_invoke(stdexec::connect_t, TSender s, TReceiver&& rec) {
-                return TScheduleOpState<std::decay_t<TReceiver>>(*s.Loop, std::forward<TReceiver>(rec));
-            }
-
-            friend auto tag_invoke(stdexec::get_env_t, const TSender& s) noexcept -> TEnv;
-
-        private:
-            TLoop* Loop;
-        };
-
-        template <ETimerType Type>
-        class TTimedSender {
-        public:
-            using sender_concept = stdexec::sender_t;
-            using completion_signatures = TScheduleEventuallyCompletionSignatures;
-
-            explicit TTimedSender(TLoop& loop, std::chrono::milliseconds timeout) noexcept
-                : Timeout(std::max(timeout, std::chrono::milliseconds{0})), Loop{&loop}
-            {}
-
-            template <stdexec::receiver_of<completion_signatures> TReceiver>
-            friend auto tag_invoke(stdexec::connect_t, TTimedSender s, TReceiver&& rec) {
-                return TTimedScheduleOpState<std::decay_t<TReceiver>, Type>(
-                        *s.Loop, static_cast<std::uint64_t>(s.Timeout.count()), std::forward<TReceiver>(rec));
-            }
-
-            friend auto tag_invoke(stdexec::get_env_t, const TTimedSender& s) noexcept {
-                return TEnv(*s.Loop);
-            }
-
-        private:
-            std::chrono::milliseconds Timeout;
-            TLoop* Loop;
-        };
-
-        class TSignalSender {
-        public:
-            using sender_concept = stdexec::sender_t;
-            using completion_signatures = TScheduleEventuallyCompletionSignatures;
-
-            explicit TSignalSender(TLoop& loop, int signum) noexcept;
-
-            template <stdexec::receiver_of<completion_signatures> TReceiver>
-            friend auto tag_invoke(stdexec::connect_t, TSignalSender s, TReceiver&& rec) {
-                return TSignalScheduleOpState<std::decay_t<TReceiver>>(*s.Loop, s.Signum, std::forward<TReceiver>(rec));
-            }
-
-            friend auto tag_invoke(stdexec::get_env_t, const TSignalSender& s) noexcept -> TEnv;
-
-        private:
-            TLoop* Loop;
-            int Signum;
-        };
-
         friend auto tag_invoke(stdexec::get_domain_t, const TScheduler& s) noexcept -> TDomain;
         friend auto tag_invoke(exec::now_t, const TScheduler& s) noexcept -> std::chrono::time_point<TLoopClock>;
-        friend auto tag_invoke(stdexec::schedule_t, TScheduler s) noexcept -> TSender;
-        friend auto tag_invoke(uvexec::schedule_upon_signal_t, TScheduler s, int signum) noexcept -> TSignalSender;
-        friend auto tag_invoke(exec::schedule_after_t,
-                TScheduler s, TLoopClock::duration t) noexcept -> TTimedSender<ETimerType::After>;
-        friend auto tag_invoke(exec::schedule_at_t,
-                TScheduler s, TLoopClock::time_point t) noexcept -> TTimedSender<ETimerType::At>;
 
         class TLoopEnv {
         public:
             explicit TLoopEnv(TLoop& loop) noexcept;
 
             friend auto tag_invoke(stdexec::get_scheduler_t, const TLoopEnv& env) noexcept -> TScheduler;
-
             friend auto tag_invoke(stdexec::get_domain_t, const TLoopEnv& env) noexcept -> TDomain;
 
         private:
@@ -435,13 +220,17 @@ public:
         TLoop* Loop;
     };
 
+    TLoop();
+    TLoop(TLoop&&) noexcept = delete;
+    ~TLoop();
+
     auto get_scheduler() noexcept -> TScheduler;
     auto run() -> bool;
     auto run_once() -> bool;
     auto drain() -> bool;
     void finish() noexcept;
 
-    void Schedule(TOpState& op) noexcept;
+    void Schedule(TOperation& op) noexcept;
     void RunnerSteal(TRunner& runner);
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TLoop& loop) noexcept -> uv_loop_t&;
@@ -451,12 +240,12 @@ private:
     void Walk(uv_walk_cb cb, void* arg);
     auto RunLocked(std::unique_lock<std::mutex>& lock, uv_run_mode mode) -> bool;
 
-    static void ApplyOpStates(uv_async_t* async);
+    static void ApplyOperations(uv_async_t* async);
 
 private:
     uv_loop_t UvLoop;
     uv_async_t Async;
-    TOpStateList Scheduled;
+    TOperationList Scheduled;
     std::mutex RunMtx;
     TRunnersQueue Runners;
     bool Running;

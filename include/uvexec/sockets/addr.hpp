@@ -21,7 +21,7 @@ namespace NUvExec {
 
 struct TIp4Addr {
     TIp4Addr() noexcept;
-    TIp4Addr(const char *ip, int port);
+    TIp4Addr(const char* ip, int port);
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TIp4Addr& addr) noexcept -> sockaddr_in&;
     friend auto tag_invoke(NUvUtil::TRawUvObject, const TIp4Addr& addr) noexcept -> const sockaddr_in&;
@@ -31,12 +31,25 @@ struct TIp4Addr {
 
 struct TIp6Addr {
     TIp6Addr() noexcept;
-    TIp6Addr(const char *ip, int port);
+    TIp6Addr(const char* ip, int port);
 
     friend auto tag_invoke(NUvUtil::TRawUvObject, TIp6Addr& addr) noexcept -> sockaddr_in6&;
     friend auto tag_invoke(NUvUtil::TRawUvObject, const TIp6Addr& addr) noexcept -> const sockaddr_in6&;
 
     sockaddr_in6 Addr;
 };
+
+template <typename TAddr>
+auto DefaultAddr() -> TAddr;
+
+template <>
+inline auto DefaultAddr<TIp4Addr>() -> TIp4Addr {
+    return {"0.0.0.0", 0};
+}
+
+template <>
+inline auto DefaultAddr<TIp6Addr>() -> TIp6Addr {
+    return {"::", 0};
+}
 
 }

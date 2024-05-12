@@ -18,12 +18,22 @@
 #include "sockets/tcp_listener.hpp"
 #include "sockets/udp.hpp"
 #include "algorithms/accept.hpp"
+#include "algorithms/schedule.hpp"
+#include "algorithms/after.hpp"
+#include "algorithms/upon_signal.hpp"
+#include "algorithms/bind_to.hpp"
+#include "algorithms/connect_to.hpp"
+#include "algorithms/accept_from.hpp"
+
 #include "algorithms/async_value.hpp"
+
 
 namespace uvexec {
 
 using loop_t = NUvExec::TLoop;
 using scheduler_t = NUvExec::TLoop::TScheduler;
+
+using clock_t = NUvExec::TLoopClock;
 
 using tcp_socket_t = NUvExec::TTcpSocket;
 using tcp_listener_t = NUvExec::TTcpListener;

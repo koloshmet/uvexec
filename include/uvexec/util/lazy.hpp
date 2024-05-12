@@ -17,6 +17,7 @@
 
 #include <functional>
 
+
 namespace NUvExec {
 
 template<std::invocable TF> requires std::is_nothrow_move_constructible_v<TF>
@@ -53,7 +54,7 @@ public:
 
     auto operator=(TLazyConstruct&& val) noexcept -> TLazyConstruct& {
         if (val.Constructed()) {
-            std::terminate(); // Trying to move a nonmovable
+            std::terminate(); // Trying to move a non-movable
         }
         Value = std::move(val.Value);
     }

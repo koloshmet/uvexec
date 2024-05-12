@@ -99,7 +99,7 @@ auto operator|(TTcpAcceptSender<TJustSender<>> sender, TAdapterClosure&& closure
 template <stdexec::sender TSender>
 auto tag_invoke(
         TLoop::TDomain,
-        TSenderPackage<uvexec::accept_t, TSender, std::tuple<TTcpListener&, TTcpSocket&>>&& s) noexcept(
+        TSenderPackage<uvexec::accept_t, TSender, std::tuple<TTcpListener&, TTcpSocket&>> s) noexcept(
                 std::is_nothrow_constructible_v<std::decay_t<TSender>, TSender>) {
     return TTcpAcceptSender<std::decay_t<TSender>>(std::move(s.Sender), std::get<0>(s.Data), std::get<1>(s.Data));
 }

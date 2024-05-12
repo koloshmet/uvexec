@@ -46,8 +46,7 @@ struct UdpServer {
     auto accept_datagram() noexcept {
         return stdexec::just(std::vector<std::byte>(READABLE_BUFFER_SIZE), uvexec::ip_v4_addr_t{})
                 | stdexec::let_value([this](std::vector<std::byte>& data, uvexec::ip_v4_addr_t& peer) noexcept {
-                    return stdexec::just(std::span(data), std::ref(peer))
-                            | uvexec::receive_from(Listener)
+                    return uvexec::receive_from(Listener, std::span(data), peer)
                             | stdexec::let_value([&](std::size_t n) noexcept {
                                 spawn_accept();
                                 return stdexec::just(std::span(data).first(n), std::ref(peer));
@@ -90,7 +89,7 @@ auto main() -> int {
             stdexec::schedule(loop.get_scheduler())
             | stdexec::let_value([&]() noexcept {
                 return exec::when_any(
-                        uvexec::schedule_upon_signal(loop.get_scheduler(), SIGINT),
+                        uvexec::upon_signal(SIGINT),
                         stdexec::just(std::ref(loop), std::ref(addr))
                         | uvexec::async_value([&](UdpServer& server) noexcept {
                             return server.Scope.nest(server.accept_datagram())

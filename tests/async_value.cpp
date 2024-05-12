@@ -17,8 +17,8 @@
 #include <catch2/catch.hpp>
 
 #include <uvexec/algorithms/async_value.hpp>
+#include <uvexec/algorithms/after.hpp>
 
-#include <uvexec/execution/loop.hpp>
 
 #include <exec/async_scope.hpp>
 #include <exec/when_any.hpp>
@@ -68,7 +68,8 @@ TEST_CASE("Let value doesn't destroy", "[async_value]") {
 TEST_CASE("Async value destroys", "[async_value]") {
     stdexec::run_loop loop;
     bool destroyed{false};
-    stdexec::start_detached(
+    exec::async_scope scope;
+    scope.spawn(
             uvexec::async_value(stdexec::transfer_just(loop.get_scheduler(), TS(destroyed)), [&](TS&) noexcept {
                 REQUIRE(!destroyed);
                 return stdexec::just();

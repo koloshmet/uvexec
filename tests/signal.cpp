@@ -17,6 +17,7 @@
 #include <catch2/catch.hpp>
 
 #include <uvexec/execution/loop.hpp>
+#include <uvexec/algorithms/upon_signal.hpp>
 
 #include <exec/task.hpp>
 #include <exec/async_scope.hpp>
@@ -52,6 +53,32 @@ TEST_CASE("Raise SIGINT", "[loop][signal]") {
     REQUIRE(executed);
 }
 
+TEST_CASE("Facade raise SIGINT", "[loop][signal]") {
+    constexpr auto signal = SIGINT;
+
+    TLoop loop;
+    exec::async_scope scope;
+    auto threadId = std::this_thread::get_id();
+
+    bool executed{false};
+    scope.spawn(
+            stdexec::schedule(loop.get_scheduler())
+            | uvexec::upon_signal(signal)
+            | stdexec::then([&]() noexcept {
+                executed = true;
+                REQUIRE(threadId == std::this_thread::get_id());
+            }) | stdexec::upon_error([](auto) noexcept {}));
+
+    stdexec::sync_wait(stdexec::schedule(loop.get_scheduler())
+                       | stdexec::let_value([&]() noexcept {
+        std::raise(signal);
+        return scope.on_empty();
+    })).value();
+
+    REQUIRE(threadId == std::this_thread::get_id());
+    REQUIRE(executed);
+}
+
 TEST_CASE("Signal cancelled before progress", "[loop][signal]") {
     constexpr auto signal = SIGINT;
 
@@ -64,6 +91,30 @@ TEST_CASE("Signal cancelled before progress", "[loop][signal]") {
             | stdexec::then([&]() noexcept {
                 executed = true;
             }) | stdexec::upon_error([](auto) noexcept {}));
+
+    scope.request_stop();
+    stdexec::sync_wait(
+            stdexec::schedule(loop.get_scheduler()) | stdexec::let_value([&]() noexcept {
+                return scope.on_empty();
+            })).value();
+
+    REQUIRE(!executed);
+}
+
+TEST_CASE("Facade signal cancelled before progress", "[loop][signal]") {
+    constexpr auto signal = SIGINT;
+
+    TLoop loop;
+
+    exec::async_scope scope;
+
+    bool executed{false};
+    scope.spawn(stdexec::schedule(loop.get_scheduler())
+            | stdexec::let_value([&]() noexcept {
+                return uvexec::upon_signal(signal);
+            })
+            | stdexec::then([&]() noexcept { executed = true; })
+            | stdexec::upon_error([](auto) noexcept {}));
 
     scope.request_stop();
     stdexec::sync_wait(
