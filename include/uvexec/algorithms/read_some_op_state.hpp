@@ -73,10 +73,17 @@ public:
 private:
     static void ReadCallback(uv_stream_t* tcp, std::ptrdiff_t nrd, const uv_buf_t*) {
         TReadSomeOpState* self = NUvUtil::GetData<TReadSomeOpState>(tcp);
+        if (nrd == 0) {
+            return;
+        }
         if (!self->StopOp.Reset()) {
             NUvUtil::ReadStop(tcp);
             if (nrd < 0) {
-                stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+                if (nrd == UV_EOF) {
+                    stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(0));
+                } else {
+                    stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+                }
             } else {
                 stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(nrd));
             }

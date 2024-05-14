@@ -77,9 +77,13 @@ private:
         if (nrd < 0) {
             if (!self->StopOp.Reset()) {
                 NUvUtil::ReadStop(tcp);
-                stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+                if (nrd == UV_EOF) {
+                    stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(self->ReadTotal));
+                } else {
+                    stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+                }
             }
-        } else {
+        } else if (nrd > 0) {
             self->ReadTotal += nrd;
             if (self->Condition(static_cast<std::size_t>(nrd))) {
                 if (!self->StopOp.Reset()) {

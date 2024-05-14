@@ -206,6 +206,7 @@ typedef struct SClientData {
     const uv_buf_t* data_buffer;
     int* connection_limit;
     ssize_t bytes_left;
+    int rc;
 } TClientData;
 
 static void on_client_close(uv_handle_t* handle) {
@@ -226,6 +227,7 @@ int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* bu
     client_data->bytes_left = (ssize_t) buf->len;
     client_data->addr = addr;
     client_data->connection_limit = connection_limit;
+    client_data->rc = 2;
 
     uv_tcp_t* client = malloc(sizeof(uv_tcp_t));
     uv_tcp_init(loop, client);
@@ -237,13 +239,15 @@ int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* bu
 }
 
 static void on_client_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
+    TClientData* client_data = stream->data;
     if (nread < 0) {
         uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
+        if (--client_data->rc == 0) {
+            uv_close((uv_handle_t*) stream, on_client_close);
+        }
         fprintf(stderr, "Client: Unable to read from TCP connection -> %s\n", uv_strerror((int) nread));
         return;
     }
-    TClientData* client_data = stream->data;
 
     if (client_data->bytes_left == (ssize_t) client_data->data_buffer->len && --*client_data->connection_limit > 0) {
         int status = new_connection(stream->loop, client_data->addr, client_data->data_buffer, client_data->connection_limit);
@@ -255,18 +259,21 @@ static void on_client_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
     client_data->bytes_left -= nread;
     if (client_data->bytes_left <= 0) {
         uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
+        if (--client_data->rc == 0) {
+            uv_close((uv_handle_t*) stream, on_client_close);
+        }
     }
 }
 
 static void on_client_write(uv_write_t* req, int status) {
     uv_stream_t* stream = req->data;
     free(req);
+    TClientData* client_data = stream->data;
     if (status < 0) {
-        uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
         fprintf(stderr, "Client: Unable to write to TCP server: %s\n", uv_strerror(status));
-        return;
+    }
+    if (--client_data->rc == 0) {
+        uv_close((uv_handle_t*) stream, on_client_close);
     }
 }
 

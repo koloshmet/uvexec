@@ -16,6 +16,7 @@
 #include <uvexec/uvexec.hpp>
 
 #include <exec/finally.hpp>
+#include <exec/repeat_effect_until.hpp>
 #include <exec/async_scope.hpp>
 
 #include <fmt/format.h>
@@ -39,9 +40,6 @@ struct TcpConnection {
 
     auto process_connection() noexcept {
         return uvexec::read_until(Socket, Buf, [this](std::size_t n) noexcept {
-            if (n == 0) {
-                return false;
-            }
             auto tmpBuf = std::exchange(Data, std::vector<std::byte>(READABLE_BUFFER_SIZE));
             tmpBuf.resize(n);
             Buf = Data;
@@ -51,16 +49,32 @@ struct TcpConnection {
                                 | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
                                     fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
                                 });
-            }), uvexec::scheduler_t::TEnv(Socket.Loop()));
+                    }), uvexec::scheduler_t::TEnv(Socket.Loop()));
             return false;
         })
         | stdexec::then([](std::size_t) noexcept {})
         | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
-            if (e != UV_EOF) {
-                fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
-            }
+            fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
         });
     };
+
+    auto process_connection_sequentially() noexcept {
+        return uvexec::receive(Socket, std::span(Buf))
+                | stdexec::then([this](std::size_t n) noexcept {
+                    if (n > 0) {
+                        spawn_process_connection();
+                    }
+                    return std::span(Buf).first(n);
+                })
+                | uvexec::send(Socket)
+                | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
+                    fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+                });
+    };
+
+    void spawn_process_connection() noexcept {
+        Scope.spawn(process_connection_sequentially(), uvexec::scheduler_t::TEnv(Socket.Loop()));
+    }
 
     uvexec::tcp_socket_t Socket;
     exec::async_scope Scope;
@@ -81,7 +95,7 @@ auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
             uvexec::accept(listener, connection->Socket)
                     | stdexec::let_value([&, connection]() noexcept {
                         spawn_accept(listener);
-                        return connection->Scope.nest(connection->process_connection());
+                        return connection->Scope.nest(connection->process_connection_sequentially());
                     })
                     | stdexec::let_value([connection]() noexcept {
                         return connection->Scope.on_empty();
