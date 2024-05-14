@@ -23,7 +23,7 @@
 
 extern "C" void UvEchoServer(int port);
 extern "C" void UvEchoServerStop();
-extern "C" void UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len);
+extern "C" long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len);
 void UvExecEchoServer(int port);
 void UvExecEchoServerStop();
 void UvExecEchoClient(int port, int connections);
@@ -43,8 +43,10 @@ TEST_CASE("Tcp benchmark", "[tcp][bench]") {
 
         std::this_thread::sleep_for(50ms);
         auto start = std::chrono::steady_clock::now();
-        UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
-        fmt::println("Uv: {}", std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
+        fmt::println("Uv: transferred {}B in {}",
+                bytes_received,
+                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
 
         std::this_thread::sleep_for(50ms);
         UvEchoServerStop();
@@ -60,8 +62,10 @@ TEST_CASE("Tcp benchmark", "[tcp][bench]") {
 
         std::this_thread::sleep_for(50ms);
         auto start = std::chrono::steady_clock::now();
-        UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
-        fmt::println("Uvexec: {}", std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
+        fmt::println("Uvexec: transferred {}B in {}",
+                bytes_received,
+                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
 
         std::this_thread::sleep_for(50ms);
         UvExecEchoServerStop();

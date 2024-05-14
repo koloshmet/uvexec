@@ -201,6 +201,10 @@ void UvEchoServerStop(void) {
 
 static char CLIENT_READ_BUFFER[READABLE_BUFFER_SIZE];
 
+typedef struct SClientStats {
+    long long total_bytes_received;
+} TClientStats;
+
 typedef struct SClientData {
     struct sockaddr_in* addr;
     const uv_buf_t* data_buffer;
@@ -256,6 +260,9 @@ static void on_client_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
         }
     }
 
+    TClientStats* stats = stream->loop->data;
+    stats->total_bytes_received += nread;
+
     client_data->bytes_left -= nread;
     if (client_data->bytes_left <= 0) {
         uv_read_stop(stream);
@@ -306,25 +313,28 @@ void on_connect(uv_connect_t* req, int status) {
     }
 }
 
-void UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len) {
+long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len) {
+    TClientStats stats = { .total_bytes_received = 0 };
     // making LibUV loop
     uv_loop_t loop;
     uv_loop_init(&loop);
+    loop.data = &stats;
 
     // resolving address to connect to TCP server
     struct sockaddr_in addr;
     int err = uv_ip4_addr("127.0.0.1", port, &addr);
     if (err < 0) {
         fprintf(stderr, "Unable to Resolve given address on port %d -> %s\n", port, uv_strerror(err));
-        return;
+        return 0;
     }
 
-    int connection_limit = connections - init_conn;
-    uv_buf_t buf = {(char*) data, data_len};
+    int connection_limit = connections - init_conn + 1;
+    uv_buf_t buf = { .base = (char*) data, .len = data_len};
     for (int i = 0; i < init_conn; ++i) {
         new_connection(&loop, &addr, &buf, &connection_limit);
     }
 
     // starting loop
     uv_run(&loop, UV_RUN_DEFAULT);
+    return stats.total_bytes_received;
 }
