@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
 
+#include <uvexec/uvexec.hpp>
 #include <thread>
 
 #include <fmt/format.h>
 #include <fmt/chrono.h>
+#include <fmt/std.h>
+
+#include <iostream>
 
 extern "C" void UvEchoServer(int port);
 extern "C" void UvEchoServerStop();
@@ -30,7 +32,7 @@ void UvExecEchoClient(int port, int connections);
 
 using namespace std::literals;
 
-TEST_CASE("Tcp benchmark", "[tcp][bench]") {
+auto main(int argc, char* argv[]) -> int {
     constexpr int PORT = 1329;
     constexpr int DATA_LEN = 4 * 1000 * 1000; // K x 1M
     constexpr int CONNECTIONS = 4 * 1000;
@@ -71,5 +73,14 @@ TEST_CASE("Tcp benchmark", "[tcp][bench]") {
         UvExecEchoServerStop();
 
         serverThread.join();
+    }
+
+    auto args = std::span(argv, argc);
+    if (std::ranges::find_if(args, [](const char* str) { return str == "--hang"sv; }) != args.end()) {
+        fmt::println("Press ctrl-c to finish");
+        std::cout.flush();
+
+        uvexec::loop_t loop;
+        stdexec::sync_wait(uvexec::schedule_upon_signal(loop.get_scheduler(), SIGINT));
     }
 }
