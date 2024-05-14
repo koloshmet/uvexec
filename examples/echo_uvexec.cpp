@@ -60,15 +60,19 @@ struct TcpConnection {
 
     auto process_connection_sequentially() noexcept {
         return uvexec::receive(Socket, std::span(Buf))
-                | stdexec::then([this](std::size_t n) noexcept {
-                    if (n > 0) {
-                        spawn_process_connection();
-                    }
-                    return std::span(Buf).first(n);
+                | stdexec::let_value([this](std::size_t n) noexcept {
+                    auto eof = n == 0;
+                    return uvexec::send(Socket, std::span(Buf).first(n))
+                            | stdexec::then([eof, this]() noexcept {
+                                if (!eof) {
+                                    spawn_process_connection();
+                                }
+                            });
                 })
-                | uvexec::send(Socket)
-                | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
-                    fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+                | stdexec::upon_error([](auto e) noexcept {
+                    if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
+                        fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+                    }
                 });
     };
 
