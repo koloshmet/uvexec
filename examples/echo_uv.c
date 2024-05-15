@@ -199,6 +199,8 @@ void UvEchoServerStop(void) {
 static char CLIENT_READ_BUFFER[READABLE_BUFFER_SIZE];
 
 typedef struct SClientStats {
+    int connection_limit;
+    int processed_connections;
     int fd_limit_exceeded;
     long long total_bytes_received;
 } TClientStats;
@@ -206,19 +208,19 @@ typedef struct SClientStats {
 typedef struct SClientData {
     struct sockaddr_in* addr;
     const uv_buf_t* data_buffer;
-    int* connection_limit;
     ssize_t bytes_left;
     int rc;
 } TClientData;
 
-static int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf, int* connection_limit);
+static int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf);
 
 static void on_client_close(uv_handle_t* handle) {
     TClientStats* client_stats = handle->loop->data;
     TClientData* client_data = handle->data;
-    if (client_stats->fd_limit_exceeded > 0 && --*client_data->connection_limit > 0) {
+    ++client_stats->processed_connections;
+    if (client_stats->fd_limit_exceeded > 0 && --client_stats->connection_limit > 0) {
         int status = new_connection(
-                handle->loop, client_data->addr, client_data->data_buffer, client_data->connection_limit);
+                handle->loop, client_data->addr, client_data->data_buffer);
         if (status < 0) {
             fprintf(stderr, "Client: Unable to connect to TCP server -> %s\n", uv_strerror(status));
             if (status == UV_EMFILE) {
@@ -237,12 +239,11 @@ static void on_client_alloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t
 
 static void on_connect(uv_connect_t* req, int status);
 
-int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf, int* connection_limit) {
+int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf) {
     TClientData* client_data = malloc(sizeof(TClientData));
     client_data->data_buffer = buf;
     client_data->bytes_left = (ssize_t) buf->len;
     client_data->addr = addr;
-    client_data->connection_limit = connection_limit;
     client_data->rc = 2;
 
     uv_tcp_t* client = malloc(sizeof(uv_tcp_t));
@@ -268,9 +269,8 @@ static void on_client_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
 
     if (client_stats->fd_limit_exceeded == 0) {
         bool first_read = client_data->bytes_left == (ssize_t) client_data->data_buffer->len;
-        if (first_read && --*client_data->connection_limit > 0) {
-            int status = new_connection(
-                    stream->loop, client_data->addr, client_data->data_buffer, client_data->connection_limit);
+        if (first_read && --client_stats->connection_limit > 0) {
+            int status = new_connection(stream->loop, client_data->addr, client_data->data_buffer);
             if (status < 0) {
                 fprintf(stderr, "Client: Unable to connect to TCP server -> %s\n", uv_strerror(status));
                 if (status == UV_EMFILE) {
@@ -334,7 +334,12 @@ void on_connect(uv_connect_t* req, int status) {
 }
 
 long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len) {
-    TClientStats stats = { .fd_limit_exceeded = 0, .total_bytes_received = 0 };
+    TClientStats stats = {
+            .connection_limit = connections - init_conn + 1,
+            .processed_connections = 0,
+            .fd_limit_exceeded = 0,
+            .total_bytes_received = 0
+    };
     // making LibUV loop
     uv_loop_t loop;
     uv_loop_init(&loop);
@@ -348,10 +353,9 @@ long long UvEchoClient(int port, int connections, int init_conn, const char* dat
         return 0;
     }
 
-    int connection_limit = connections - init_conn + 1;
-    uv_buf_t buf = { .base = (char*) data, .len = data_len};
+    uv_buf_t buf = { .base = (char*) data, .len = data_len };
     for (int i = 0; i < init_conn; ++i) {
-        new_connection(&loop, &addr, &buf, &connection_limit);
+        new_connection(&loop, &addr, &buf);
     }
 
     // starting loop

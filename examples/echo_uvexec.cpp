@@ -33,7 +33,7 @@ constexpr int READABLE_BUFFER_SIZE = 65536;
 
 struct TcpConnection {
     explicit TcpConnection(uvexec::loop_t& loop)
-        : Socket(loop), Data(READABLE_BUFFER_SIZE), Buf(Data)
+        : Socket(loop), Data(READABLE_BUFFER_SIZE), Buf(Data), Received{0}, Sent{0}
     {}
 
     TcpConnection(TcpConnection&&) noexcept = delete;
@@ -59,19 +59,24 @@ struct TcpConnection {
     };
 
     auto process_connection_sequentially() noexcept {
-        return uvexec::receive(Socket, std::span(Buf))
+        return uvexec::receive(Socket, Buf)
                 | stdexec::let_value([this](std::size_t n) noexcept {
-                    auto eof = n == 0;
-                    return uvexec::send(Socket, std::span(Buf).first(n))
-                            | stdexec::then([eof, this]() noexcept {
-                                if (!eof) {
-                                    spawn_process_connection();
-                                }
+                    Received += n;
+                    return uvexec::send(Socket, Buf.first(n))
+                            | stdexec::then([n, this]() noexcept {
+                                Sent += n;
+                                return n == 0;
                             });
                 })
-                | stdexec::upon_error([](auto e) noexcept {
+                | stdexec::upon_error([this](auto e) noexcept {
                     if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
                         fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+                    }
+                    return true;
+                })
+                | stdexec::then([this](bool finish) noexcept {
+                    if (!finish) {
+                        spawn_process_connection();
                     }
                 });
     };
@@ -84,6 +89,8 @@ struct TcpConnection {
     exec::async_scope Scope;
     std::vector<std::byte> Data;
     std::span<std::byte> Buf;
+    std::size_t Received;
+    std::size_t Sent;
 };
 
 auto RootScope() -> exec::async_scope& {
