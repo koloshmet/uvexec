@@ -42,11 +42,11 @@ public:
         }
     }
 
-    void set_value(std::span<std::byte> buff) noexcept {
+    void set_value(std::span<const std::byte> buff) noexcept {
         if (buff.empty()) {
             stdexec::set_value(std::move(*this).base());
         }
-        Buf.base = reinterpret_cast<char*>(buff.data());
+        Buf.base = const_cast<char*>(reinterpret_cast<const char*>(buff.data()));
         Buf.len = buff.size();
         set_value(std::span(&Buf, 1));
     }

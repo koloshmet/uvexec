@@ -18,6 +18,7 @@
 #include "completion_signatures.hpp"
 
 #include <uvexec/uv_util/reqs.hpp>
+#include <uvexec/uv_util/misc.hpp>
 
 #include <span>
 
@@ -41,8 +42,8 @@ public:
         }
     }
 
-    void set_value(std::span<std::byte> buff) noexcept {
-        Buf.base = reinterpret_cast<char*>(buff.data());
+    void set_value(std::span<const std::byte> buff) noexcept {
+        Buf.base = const_cast<char*>(reinterpret_cast<const char*>(buff.data()));
         Buf.len = buff.size();
         set_value(std::span(&Buf, 1));
     }

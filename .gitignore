@@ -1,5 +1,6 @@
-cmake-build-*
-build-*
+cmake-build*
+build*
 .idea
 .vs
+.vscode
 CMakeUserPresets.json

@@ -39,25 +39,6 @@ auto main(int argc, char* argv[]) -> int {
     constexpr int IN_CONN = 128;
     std::vector<char> data(DATA_LEN, 'a');
 
-    // Raw UV server as reference value
-    {
-        std::thread serverThread([] { UvEchoServer(PORT); });
-
-        std::this_thread::sleep_for(50ms);
-        auto start = std::chrono::steady_clock::now();
-        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
-        fmt::println("Uv: transferred {}B in {}",
-                bytes_received,
-                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
-
-        std::this_thread::sleep_for(50ms);
-        UvEchoServerStop();
-
-        serverThread.join();
-    }
-
-    std::this_thread::sleep_for(100ms);
-
     // UvExec server
     {
         std::thread serverThread([] { UvExecEchoServer(PORT); });
@@ -71,6 +52,25 @@ auto main(int argc, char* argv[]) -> int {
 
         std::this_thread::sleep_for(50ms);
         UvExecEchoServerStop();
+
+        serverThread.join();
+    }
+
+    std::this_thread::sleep_for(100ms);
+
+    // Raw UV server as reference value
+    {
+        std::thread serverThread([] { UvEchoServer(PORT); });
+
+        std::this_thread::sleep_for(50ms);
+        auto start = std::chrono::steady_clock::now();
+        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
+        fmt::println("Uv: transferred {}B in {}",
+                bytes_received,
+                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+
+        std::this_thread::sleep_for(50ms);
+        UvEchoServerStop();
 
         serverThread.join();
     }
