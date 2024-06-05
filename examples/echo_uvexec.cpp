@@ -104,7 +104,7 @@ auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
     return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) {
         spawn_accept(listener);
         auto connection = new EchoConnection(socket);
-        return connection->Scope.nest(connection->process_connection_sequentially())
+        return connection->Scope.nest(connection->process_connection())
                | stdexec::let_value([connection]() {
                    return connection->Scope.on_empty();
                })
@@ -197,7 +197,7 @@ public:
         : Loop{loop}
         , Endpoint("127.0.0.1", port)
         , Data(data)
-        , ConnectionLimit{connections}
+        , ConnectionLimit{connections + 1}
         , ProcessedConnections{0}
         , TotalBytesReceived{0}
     {}
