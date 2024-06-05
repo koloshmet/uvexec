@@ -23,12 +23,18 @@
 
 #include <iostream>
 
-extern "C" void UvEchoServer(int port);
-extern "C" void UvEchoServerStop();
-extern "C" long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len);
+
+extern "C" {
+
+void UvEchoServer(int port);
+void UvEchoServerStop();
+long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len);
+
+}
+
 void UvExecEchoServer(int port);
 void UvExecEchoServerStop();
-void UvExecEchoClient(int port, int connections);
+auto UvExecEchoClient(int port, int connections, int init_conn, std::span<const char> payload) -> long long;
 
 using namespace std::literals;
 
@@ -47,6 +53,14 @@ auto main(int argc, char* argv[]) -> int {
         auto start = std::chrono::steady_clock::now();
         auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
         fmt::println("Uvexec: transferred {}B in {}",
+                bytes_received,
+                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+
+        std::this_thread::sleep_for(50ms);
+
+        start = std::chrono::steady_clock::now();
+        bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
+        fmt::println("Uvexec client: transferred {}B in {}",
                 bytes_received,
                 std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
 

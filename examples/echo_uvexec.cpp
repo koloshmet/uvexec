@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "stdexec/execution.hpp"
+#include "uvexec/uv_util/errors.hpp"
+#include <uv.h>
 #include <uvexec/uvexec.hpp>
 
 #include <exec/finally.hpp>
@@ -22,7 +25,7 @@
 #include <fmt/ostream.h>
 #include <iostream>
 #include <vector>
-#include <array>
+#include <span>
 
 using namespace NUvExec;
 
@@ -30,8 +33,8 @@ namespace {
 
 constexpr int READABLE_BUFFER_SIZE = 65536;
 
-struct TcpConnection {
-    explicit TcpConnection(uvexec::tcp_socket_t& socket)
+struct EchoConnection {
+    explicit EchoConnection(uvexec::tcp_socket_t& socket)
         : Socket{&socket}, Data(READABLE_BUFFER_SIZE), Buf(Data), Received{0}, Sent{0}
     {}
 
@@ -100,7 +103,7 @@ void spawn_accept(uvexec::tcp_listener_t& listener) noexcept;
 auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
     return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) {
         spawn_accept(listener);
-        auto connection = new TcpConnection(socket);
+        auto connection = new EchoConnection(socket);
         return connection->Scope.nest(connection->process_connection_sequentially())
                | stdexec::let_value([connection]() {
                    return connection->Scope.on_empty();
@@ -145,28 +148,131 @@ void UvExecEchoServerStop() {
     RootScope().request_stop();
 }
 
-void UvExecEchoClient(int port, int connections) {
+namespace {
+
+class EchoClient {
+    class Connection {
+    public:
+        Connection(EchoClient& client, uvexec::tcp_socket_t& socket, std::size_t sent) noexcept
+            : Client{client}
+            , Socket{socket}
+            , Buffer(READABLE_BUFFER_SIZE)
+            , DataLeft{static_cast<std::ptrdiff_t>(sent)}
+        {}
+
+        auto receive_data() {
+            return uvexec::receive(Socket, std::span(Buffer)) | stdexec::then([&](std::size_t rd) {
+                DataLeft -= static_cast<std::ptrdiff_t>(rd);
+                Client.TotalBytesReceived += rd;
+                if (rd > 0 && DataLeft > 0) {
+                    spawn_receive();
+                }
+            })
+            | stdexec::upon_error([](auto e) noexcept {
+                if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
+                    fmt::println(std::cerr, "CLient: Unable to read data -> {}", ::uv_strerror(e));
+                } else {
+                    fmt::println(std::cerr, "CLient: Unable to read data");
+                }
+            });
+        }
+
+        void spawn_receive() {
+            Scope.spawn(receive_data(), uvexec::scheduler_t::TLoopEnv(Socket.Loop()));
+        }
+
+        auto join() {
+            return Scope.on_empty();
+        }
+
+        EchoClient& Client;
+        exec::async_scope Scope;
+        uvexec::tcp_socket_t& Socket;
+        std::vector<std::byte> Buffer;
+        std::ptrdiff_t DataLeft;
+    };
+
+public:
+    EchoClient(uvexec::loop_t& loop, std::span<const std::byte> data, int connections, int port)
+        : Loop{loop}
+        , Endpoint("127.0.0.1", port)
+        , Data(data)
+        , ConnectionLimit{connections}
+        , ProcessedConnections{0}
+        , TotalBytesReceived{0}
+    {}
+
+    auto process_connection() {
+        return uvexec::connect_to(Endpoint, [&](uvexec::tcp_socket_t& socket) {
+            if (--ConnectionLimit > 0) {
+                spawn_connection();
+            }
+            auto connection = new Connection(*this, socket, Data.size());
+            connection->spawn_receive();
+            return uvexec::send(socket, Data)
+                    | stdexec::let_value([connection] {
+                        return connection->join();
+                    })
+                    | stdexec::then([connection, this] {
+                        ++ProcessedConnections;
+                        delete connection;
+                    });
+        })
+        | stdexec::upon_error([](auto e) noexcept {
+            if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
+                fmt::println(std::cerr, "CLient: Unable to process connection -> {}", ::uv_strerror(e));
+            } else {
+                fmt::println(std::cerr, "CLient: Unable to process connection");
+            }
+        });
+    }
+
+    void spawn_connection() {
+        Scope.spawn(process_connection(), uvexec::scheduler_t::TLoopEnv(Loop));
+    }
+
+    auto join() {
+        return Scope.on_empty();
+    }
+
+    auto total_bytes() const noexcept {
+        return TotalBytesReceived;
+    }
+
+private:
+    uvexec::loop_t& Loop;
+    uvexec::ip_v4_addr_t Endpoint;
+    std::span<const std::byte> Data;
+    exec::async_scope Scope;
+    int ConnectionLimit;
+    int ProcessedConnections;
+    long long TotalBytesReceived;
+};
+
+}
+
+auto UvExecEchoClient(int port, int connections, int init_conn, std::span<const char> payload) -> long long {
     uvexec::loop_t loop;
 
-    const char message[] = "Rise and shine";
-    std::array<std::byte, sizeof(message) - 1> arr;
-    std::memcpy(arr.data(), message, arr.size());
+    EchoClient client(loop, std::as_bytes(payload), connections - init_conn, port);
 
     auto conn = stdexec::schedule(loop.get_scheduler())
-            | stdexec::then([&port]() { return uvexec::ip_v4_addr_t("127.0.0.1", port); })
-            | uvexec::connect_to([&](uvexec::tcp_socket_t& socket) noexcept {
-                return uvexec::send(socket, std::span(arr))
-                        | stdexec::then([&]() noexcept { return std::span(arr); })
-                        | uvexec::receive(socket);
+            | stdexec::then([&]() {
+                for (int i = 0; i < init_conn; ++i) {
+                    client.spawn_connection();
+                }
+            })
+            | stdexec::let_value([&client] {
+                return client.join();
             });
 
     try {
         stdexec::sync_wait(conn).value();
     } catch (const std::exception& e) {
-        fmt::println(std::cerr, "Unable to wakeup server, error: {}", e.what());
-        throw;
+        fmt::println(std::cerr, "Unable to process connections, error: {}", e.what());
     } catch (...) {
-        fmt::println(std::cerr, "Unable to wakeup server");
-        throw;
+        fmt::println(std::cerr, "Unable to process connections");
     }
+
+    return client.total_bytes();
 }
