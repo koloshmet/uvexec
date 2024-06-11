@@ -13,22 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
-
-#include <stdexcept>
+#include <uvexec/execution/error_code.hpp>
 
 
-namespace NUvUtil {
+namespace NUvExec {
 
-using TUvError = int;
+class TCategory final : public std::error_category {
+public:
+    const char* name() const noexcept override {
+        return "uv";
+    }
+    std::string message(int ec) const override {
+        return ::uv_strerror(ec);
+    }
+};
 
-constexpr TUvError Ok{0};
-auto IsError(TUvError uvErr) noexcept -> bool;
+const std::error_category& Category() noexcept {
+    static TCategory c;
+    return c;
+}
 
-auto MakeRuntimeError(TUvError uvErr) -> std::runtime_error;
-
-void Assert(TUvError uvErr);
-
-void Panic(TUvError uvErr) noexcept;
+auto make_error_code(EErrc e) noexcept -> std::error_code {
+    return {static_cast<int>(e), Category()};
+}
 
 }

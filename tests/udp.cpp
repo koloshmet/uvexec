@@ -19,6 +19,7 @@
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/sockets/udp.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/schedule.hpp>
 #include <uvexec/algorithms/connect_to.hpp>
 #include <uvexec/algorithms/bind_to.hpp>
 

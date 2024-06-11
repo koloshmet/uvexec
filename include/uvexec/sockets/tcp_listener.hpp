@@ -16,6 +16,7 @@
 #pragma once
 
 #include "tcp.hpp"
+#include "uvexec/execution/error_code.hpp"
 
 
 namespace NUvExec {
@@ -73,7 +74,7 @@ public:
             }
             auto err = NUvUtil::Accept(NUvUtil::RawUvObject(*Listener), NUvUtil::RawUvObject(*Socket));
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(*std::move(Receiver), err);
+                stdexec::set_error(*std::move(Receiver), EErrc{err});
             } else {
                 stdexec::set_value(*std::move(Receiver));
             }
@@ -82,7 +83,7 @@ public:
             if (StopOp.Reset()) {
                 return;
             }
-            stdexec::set_error(*std::move(Receiver), err);
+            stdexec::set_error(*std::move(Receiver), EErrc{err});
         }
 
         static void StopCallback(TAcceptOpState& op) noexcept {

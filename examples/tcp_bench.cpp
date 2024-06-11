@@ -50,19 +50,22 @@ auto main(int argc, char* argv[]) -> int {
         std::thread serverThread([] { UvExecEchoServer(PORT); });
 
         std::this_thread::sleep_for(50ms);
-        auto start = std::chrono::steady_clock::now();
-        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
-        fmt::println("Uvexec: transferred {}B in {}",
-                bytes_received,
-                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
-
+        [&]() {
+            auto start = std::chrono::steady_clock::now();
+            auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
+            fmt::println("Uv -> UvExec: transferred {}B in {}",
+                    bytes_received,
+                    std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        }();
         std::this_thread::sleep_for(50ms);
 
-        start = std::chrono::steady_clock::now();
-        bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
-        fmt::println("Uvexec client: transferred {}B in {}",
-                bytes_received,
-                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        [&]() {
+            auto start = std::chrono::steady_clock::now();
+            auto bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
+            fmt::println("UvExec -> UvExec: transferred {}B in {}",
+                    bytes_received,
+                    std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        }();
 
         std::this_thread::sleep_for(50ms);
         UvExecEchoServerStop();
@@ -77,24 +80,25 @@ auto main(int argc, char* argv[]) -> int {
         std::thread serverThread([] { UvEchoServer(PORT); });
 
         std::this_thread::sleep_for(50ms);
-        auto start = std::chrono::steady_clock::now();
-        auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
-        fmt::println("Uv: transferred {}B in {}",
-                bytes_received,
-                std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        [&]() {
+            auto start = std::chrono::steady_clock::now();
+            auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
+            fmt::println("Uv -> Uv: transferred {}B in {}",
+                    bytes_received,
+                    std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        }();
+        std::this_thread::sleep_for(50ms);
 
+        [&]() {
+            auto start = std::chrono::steady_clock::now();
+            auto bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
+            fmt::println("UvExec -> Uv: transferred {}B in {}",
+                    bytes_received,
+                    std::chrono::ceil<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start));
+        }();
         std::this_thread::sleep_for(50ms);
         UvEchoServerStop();
 
         serverThread.join();
-    }
-
-    auto args = std::span(argv, argc);
-    if (std::ranges::find_if(args, [](const char* str) { return str == "--hang"sv; }) != args.end()) {
-        fmt::println("Press ctrl-c to finish");
-        std::cout.flush();
-
-        uvexec::loop_t loop;
-        stdexec::sync_wait(uvexec::schedule_upon_signal(loop.get_scheduler(), SIGINT));
     }
 }

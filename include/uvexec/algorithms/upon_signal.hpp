@@ -16,7 +16,6 @@
 #pragma once
 
 #include "upon_signal_op_state.hpp"
-#include "schedule.hpp"
 
 
 namespace NUvExec {

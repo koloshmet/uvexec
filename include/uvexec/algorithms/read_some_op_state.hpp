@@ -15,8 +15,8 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
 #include <uvexec/execution/loop.hpp>
+#include <uvexec/execution/error_code.hpp>
 
 #include <span>
 
@@ -43,7 +43,7 @@ class TReadSomeOpState {
             NUvUtil::RawUvObject(*Op->Stream).data = Op;
             auto err = NUvUtil::ReadStart(NUvUtil::RawUvObject(*Op->Stream), AllocateBuf, ReadCallback);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), err);
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
                 Op->StopOp.Setup();
@@ -82,7 +82,7 @@ private:
                 if (nrd == UV_EOF) {
                     stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(0));
                 } else {
-                    stdexec::set_error(*std::move(self->Receiver), static_cast<NUvUtil::TUvError>(nrd));
+                    stdexec::set_error(*std::move(self->Receiver), EErrc{static_cast<NUvUtil::TUvError>(nrd)});
                 }
             } else {
                 stdexec::set_value(*std::move(self->Receiver), static_cast<std::size_t>(nrd));

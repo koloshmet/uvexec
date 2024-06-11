@@ -13,9 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "stdexec/execution.hpp"
-#include "uvexec/uv_util/errors.hpp"
-#include <uv.h>
 #include <uvexec/uvexec.hpp>
 
 #include <exec/finally.hpp>
@@ -46,15 +43,15 @@ struct EchoConnection {
             Scope.spawn(stdexec::just(std::move(tmpBuf))
                     | stdexec::let_value([this](std::vector<std::byte>& tmpBuf) noexcept {
                         return uvexec::send(*Socket, std::span(tmpBuf))
-                                | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
-                                    fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
+                                | stdexec::upon_error([&](uvexec::errc e) noexcept {
+                                    fmt::println(std::cerr, "Server: Unable to response -> {}", std::error_code(e).message());
                                 });
                     }), uvexec::scheduler_t::TLoopEnv(Socket->Loop()));
             return false;
         })
         | stdexec::then([](std::size_t) noexcept {})
-        | stdexec::upon_error([&](NUvUtil::TUvError e) noexcept {
-            fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+        | stdexec::upon_error([&](uvexec::errc e) noexcept {
+            fmt::println(std::cerr, "Server: Unable to process connection -> {}", std::error_code(e).message());
         });
     };
 
@@ -69,8 +66,8 @@ struct EchoConnection {
                             });
                 })
                 | stdexec::upon_error([this](auto e) noexcept {
-                    if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
-                        fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+                    if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                        fmt::println(std::cerr, "Server: Unable to process connection -> {}", std::error_code(e).message());
                     }
                     return true;
                 })
@@ -117,8 +114,8 @@ auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
 void spawn_accept(uvexec::tcp_listener_t& listener) noexcept {
     RootScope().spawn(
             accept_connection(listener) | stdexec::upon_error([](auto e) noexcept {
-                if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
-                    fmt::println(std::cerr, "Server: Unable to accept connection -> {}", ::uv_strerror(e));
+                if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                    fmt::println(std::cerr, "Server: Unable to accept connection -> {}", std::error_code(e).message());
                 }
             }),
             uvexec::scheduler_t::TLoopEnv(listener.Loop()));
@@ -169,8 +166,8 @@ class EchoClient {
                 }
             })
             | stdexec::upon_error([](auto e) noexcept {
-                if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
-                    fmt::println(std::cerr, "CLient: Unable to read data -> {}", ::uv_strerror(e));
+                if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                    fmt::println(std::cerr, "CLient: Unable to read data -> {}", std::error_code(e).message());
                 } else {
                     fmt::println(std::cerr, "CLient: Unable to read data");
                 }
@@ -219,8 +216,8 @@ public:
                     });
         })
         | stdexec::upon_error([](auto e) noexcept {
-            if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
-                fmt::println(std::cerr, "CLient: Unable to process connection -> {}", ::uv_strerror(e));
+            if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                fmt::println(std::cerr, "CLient: Unable to process connection -> {}", std::error_code(e).message());
             } else {
                 fmt::println(std::cerr, "CLient: Unable to process connection");
             }

@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "stdexec/execution.hpp"
-#include <cstring>
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
 #include <uvexec/algorithms/accept.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/schedule.hpp>
 #include <uvexec/algorithms/connect_to.hpp>
 #include <uvexec/algorithms/accept_from.hpp>
 #include <uvexec/algorithms/bind_to.hpp>
