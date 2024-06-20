@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "stdexec/execution.hpp"
+#include "uvexec/sockets/tcp_listener.hpp"
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
@@ -54,6 +56,15 @@ TEST_CASE("Bind and close listener", "[loop][tcp]") {
     std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | uvexec::close(listener));
 }
 
+TEST_CASE("Bind and close listener facade", "[loop][tcp]") {
+    TLoop uvLoop;
+    TIp4Addr addr("127.0.0.1", TEST_PORT);
+
+    std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
+            | stdexec::then([&] { return addr; })
+            | uvexec::bind_to([&](TTcpListener& listener) { return stdexec::just(); }));
+}
+
 TEST_CASE("No incoming connection", "[loop][tcp]") {
     constexpr auto timeout = 50ms;
 
@@ -83,15 +94,14 @@ TEST_CASE("No incoming connection facade", "[loop][tcp]") {
 
     TLoop uvLoop;
     TIp4Addr addr("127.0.0.1", TEST_PORT);
-    TTcpListener listener(uvLoop, addr, 1);
 
     bool accepted{false};
-    auto conn = exec::finally(
-            uvexec::accept_from(listener, [&](TTcpSocket&) noexcept {
-                accepted = true;
-                return stdexec::just();
-            }),
-            uvexec::close(listener));
+    auto conn = stdexec::just(addr) | uvexec::bind_to([&](TTcpListener& listener) {
+                return uvexec::accept_from(listener, [&](TTcpSocket&) noexcept {
+                    accepted = true;
+                    return stdexec::just();
+                });
+            });
 
     auto start = std::chrono::steady_clock::now();
     std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())

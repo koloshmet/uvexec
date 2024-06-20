@@ -24,6 +24,8 @@
 #include <iostream>
 
 
+#define ATTR_NOINLINE __attribute__((noinline))
+
 extern "C" {
 
 void UvEchoServer(int port);
@@ -50,7 +52,7 @@ auto main(int argc, char* argv[]) -> int {
         std::thread serverThread([] { UvExecEchoServer(PORT); });
 
         std::this_thread::sleep_for(50ms);
-        [&]() {
+        [&]() ATTR_NOINLINE {
             auto start = std::chrono::steady_clock::now();
             auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
             fmt::println("Uv -> UvExec: transferred {}B in {}",
@@ -59,7 +61,7 @@ auto main(int argc, char* argv[]) -> int {
         }();
         std::this_thread::sleep_for(50ms);
 
-        [&]() {
+        [&]() ATTR_NOINLINE {
             auto start = std::chrono::steady_clock::now();
             auto bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
             fmt::println("UvExec -> UvExec: transferred {}B in {}",
@@ -80,7 +82,7 @@ auto main(int argc, char* argv[]) -> int {
         std::thread serverThread([] { UvEchoServer(PORT); });
 
         std::this_thread::sleep_for(50ms);
-        [&]() {
+        [&]() ATTR_NOINLINE -> void {
             auto start = std::chrono::steady_clock::now();
             auto bytes_received = UvEchoClient(PORT, CONNECTIONS, IN_CONN, data.data(), data.size());
             fmt::println("Uv -> Uv: transferred {}B in {}",
@@ -89,7 +91,7 @@ auto main(int argc, char* argv[]) -> int {
         }();
         std::this_thread::sleep_for(50ms);
 
-        [&]() {
+        [&]() ATTR_NOINLINE -> void {
             auto start = std::chrono::steady_clock::now();
             auto bytes_received = UvExecEchoClient(PORT, CONNECTIONS, IN_CONN, data);
             fmt::println("UvExec -> Uv: transferred {}B in {}",

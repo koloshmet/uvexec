@@ -30,9 +30,15 @@ namespace {
 
 constexpr int READABLE_BUFFER_SIZE = 65536;
 
+struct EchoStats {
+    int AcceptedConnections{0};
+    int ProcessedConnections{0};
+    std::size_t ProcessedBytes{0};
+};
+
 struct EchoConnection {
-    explicit EchoConnection(uvexec::tcp_socket_t& socket)
-        : Socket{&socket}, Data(READABLE_BUFFER_SIZE), Buf(Data), Received{0}, Sent{0}
+    explicit EchoConnection(uvexec::tcp_socket_t& socket, EchoStats& stats)
+        : Socket{&socket}, Stats{stats}, Data(READABLE_BUFFER_SIZE), Buf(Data), Received{0}, Sent{0}
     {}
 
     auto process_connection() noexcept {
@@ -43,6 +49,9 @@ struct EchoConnection {
             Scope.spawn(stdexec::just(std::move(tmpBuf))
                     | stdexec::let_value([this](std::vector<std::byte>& tmpBuf) noexcept {
                         return uvexec::send(*Socket, std::span(tmpBuf))
+                                | stdexec::then([&tmpBuf, this]() noexcept {
+                                    Stats.ProcessedBytes += tmpBuf.size();
+                                })
                                 | stdexec::upon_error([&](uvexec::errc e) noexcept {
                                     fmt::println(std::cerr, "Server: Unable to response -> {}", std::error_code(e).message());
                                 });
@@ -62,6 +71,7 @@ struct EchoConnection {
                     return uvexec::send(*Socket, Buf.first(n))
                             | stdexec::then([n, this]() noexcept {
                                 Sent += n;
+                                Stats.ProcessedBytes += n;
                                 return n == 0;
                             });
                 })
@@ -83,6 +93,7 @@ struct EchoConnection {
     }
 
     uvexec::tcp_socket_t* Socket;
+    EchoStats& Stats;
     exec::async_scope Scope;
     std::vector<std::byte> Data;
     std::span<std::byte> Buf;
@@ -90,35 +101,54 @@ struct EchoConnection {
     std::size_t Sent;
 };
 
+class EchoServer {
+public:
+    EchoServer(exec::async_scope& scope)
+        : Scope(scope)
+    {}
+
+    auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
+        return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) {
+            ++Stats.AcceptedConnections;
+            spawn_accept(listener);
+            auto connection = new EchoConnection(socket, Stats);
+            return connection->Scope.nest(connection->process_connection())
+                | stdexec::let_value([connection]() {
+                    return connection->Scope.on_empty();
+                })
+                | exec::finally(stdexec::just() | stdexec::then([connection]() noexcept {
+                    delete connection;
+                }));
+        });
+    }
+
+    void spawn_accept(uvexec::tcp_listener_t& listener) noexcept {
+        Scope.spawn(
+                accept_connection(listener) | stdexec::upon_error([](auto e) noexcept {
+                    if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                        fmt::println(std::cerr, "Server: Unable to accept connection -> {}", std::error_code(e).message());
+                    }
+                }) | stdexec::then([this]() noexcept {
+                    ++Stats.ProcessedConnections;
+                }),
+                uvexec::scheduler_t::TLoopEnv(listener.Loop()));
+    }
+
+    auto run(uvexec::tcp_listener_t& listener) {
+        return Scope.nest(accept_connection(listener)) | stdexec::let_value([this] {
+            ++Stats.ProcessedConnections;
+            return Scope.on_empty();
+        });
+    }
+
+private:
+    exec::async_scope& Scope;
+    EchoStats Stats;
+};
+
 auto RootScope() -> exec::async_scope& {
     static exec::async_scope scope;
     return scope;
-}
-
-void spawn_accept(uvexec::tcp_listener_t& listener) noexcept;
-
-auto accept_connection(uvexec::tcp_listener_t& listener) noexcept {
-    return uvexec::accept_from(listener, [&](uvexec::tcp_socket_t& socket) {
-        spawn_accept(listener);
-        auto connection = new EchoConnection(socket);
-        return connection->Scope.nest(connection->process_connection())
-               | stdexec::let_value([connection]() {
-                   return connection->Scope.on_empty();
-               })
-               | exec::finally(stdexec::just() | stdexec::then([connection]() noexcept {
-                   delete connection;
-               }));
-    });
-}
-
-void spawn_accept(uvexec::tcp_listener_t& listener) noexcept {
-    RootScope().spawn(
-            accept_connection(listener) | stdexec::upon_error([](auto e) noexcept {
-                if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
-                    fmt::println(std::cerr, "Server: Unable to accept connection -> {}", std::error_code(e).message());
-                }
-            }),
-            uvexec::scheduler_t::TLoopEnv(listener.Loop()));
 }
 
 }
@@ -128,14 +158,13 @@ void spawn_accept(uvexec::tcp_listener_t& listener) noexcept {
 void UvExecEchoServer(int port) {
     uvexec::loop_t loop;
 
+    EchoServer server(RootScope());
+
     stdexec::sync_wait(
             stdexec::schedule(loop.get_scheduler())
             | stdexec::then([&port]() { return uvexec::ip_v4_addr_t("127.0.0.1", port); })
             | uvexec::bind_to([&](uvexec::tcp_listener_t& listener) {
-                return RootScope().nest(accept_connection(listener))
-                       | stdexec::let_value([&]() {
-                           return RootScope().on_empty();
-                       });
+                return server.run(listener);
             }));
 
     std::cerr.flush();
@@ -155,10 +184,14 @@ class EchoClient {
             , Socket{socket}
             , Buffer(READABLE_BUFFER_SIZE)
             , DataLeft{static_cast<std::ptrdiff_t>(sent)}
+            , DataToReceive{sent}
         {}
 
         auto receive_data() {
             return uvexec::receive(Socket, std::span(Buffer)) | stdexec::then([&](std::size_t rd) {
+                if (std::cmp_equal(DataLeft, DataToReceive) && --Client.ConnectionLimit > 0) {
+                    Client.spawn_connection();
+                }
                 DataLeft -= static_cast<std::ptrdiff_t>(rd);
                 Client.TotalBytesReceived += rd;
                 if (rd > 0 && DataLeft > 0) {
@@ -187,6 +220,7 @@ class EchoClient {
         uvexec::tcp_socket_t& Socket;
         std::vector<std::byte> Buffer;
         std::ptrdiff_t DataLeft;
+        std::size_t DataToReceive;
     };
 
 public:
@@ -201,21 +235,25 @@ public:
 
     auto process_connection() {
         return uvexec::connect_to(Endpoint, [&](uvexec::tcp_socket_t& socket) {
-            if (--ConnectionLimit > 0) {
-                spawn_connection();
-            }
             auto connection = new Connection(*this, socket, Data.size());
             connection->spawn_receive();
             return uvexec::send(socket, Data)
                     | stdexec::let_value([connection] {
                         return connection->join();
                     })
+                    | stdexec::upon_error([connection, this](auto e) {
+                        if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
+                            fmt::println(std::cerr, "CLient: Unable to write to connection -> {}", std::error_code(e).message());
+                        } else {
+                            fmt::println(std::cerr, "CLient: Unable to write to connection");
+                        }
+                    })
                     | stdexec::then([connection, this] {
                         ++ProcessedConnections;
                         delete connection;
                     });
         })
-        | stdexec::upon_error([](auto e) noexcept {
+        | stdexec::upon_error([this](auto e) noexcept {
             if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
                 fmt::println(std::cerr, "CLient: Unable to process connection -> {}", std::error_code(e).message());
             } else {

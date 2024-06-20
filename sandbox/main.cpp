@@ -15,8 +15,6 @@
  */
 #include <uvexec/uvexec.hpp>
 
-#include <uvexec/util/lazy.hpp>
-
 #include <exec/task.hpp>
 #include <exec/single_thread_context.hpp>
 #include <exec/async_scope.hpp>
@@ -25,9 +23,8 @@
 #include <exec/repeat_effect_until.hpp>
 
 #include <iostream>
-#include <fmt/format.h>
+#include <fmt/std.h>
 #include <fmt/ranges.h>
-#include <fmt/ostream.h>
 #include <fmt/chrono.h>
 
 using namespace std::literals;
