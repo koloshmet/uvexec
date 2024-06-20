@@ -501,7 +501,7 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     });
     TLoop uvLoop;
 
-    auto data = std::make_unique_for_overwrite<std::uint32_t[]>(25'000);
+    auto data = std::make_unique<std::uint32_t[]>(25'000);
     std::span dataBuf(data.get(), 25'000);
     std::iota(dataBuf.begin(), dataBuf.end(), 0);
 
@@ -611,7 +611,7 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     TLoop uvLoop;
     exec::async_scope scope;
 
-    auto data = std::make_unique_for_overwrite<std::uint32_t[]>(25'000);
+    auto data = std::make_unique<std::uint32_t[]>(25'000);
     std::span dataBuf(data.get(), 25'000);
     std::iota(dataBuf.begin(), dataBuf.end(), 0);
 
