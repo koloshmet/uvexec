@@ -131,19 +131,21 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
 
         auto conn = exec::finally(
                 uvexec::accept(listener, socket)
-                | stdexec::then([&]() noexcept {
+                | stdexec::let_value([&]() noexcept {
                     connectionAccepted = true;
-                    return std::ref(span);
-                })
-                | uvexec::read_until(socket, [](std::size_t) noexcept { return false; })
-                | stdexec::then([&](std::size_t n) noexcept {
-                    dataReceived = true;
+                    return exec::when_any(
+                            uvexec::after(timeout),
+                            stdexec::just(std::ref(span))
+                            | uvexec::read_until(socket, [](std::size_t) noexcept { return false; })
+                            | stdexec::then([&](std::size_t n) noexcept {
+                                dataReceived = true;
+                            }));
                 }),
                 uvexec::close(socket) | uvexec::close(listener));
 
         std::ignore = stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler())
                 | stdexec::let_value([&]() noexcept {
-                    return exec::when_any(exec::schedule_after(uvLoop.get_scheduler(), timeout), conn);
+                    return conn;
                 })).value();
     });
     TLoop uvLoop;
@@ -162,7 +164,7 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
                     | exec::finally(uvexec::close(socket));
             });
 
-    std::this_thread::sleep_for(10ms);
+    std::this_thread::sleep_for(50ms);
     std::ignore = stdexec::sync_wait(conn).value();
     serverThread.join();
     REQUIRE(connected);
@@ -380,18 +382,18 @@ TEST_CASE("Ping pong multi", "[loop][tcp]") {
                                 auto arr = new std::array<std::byte, 4>;
                                 std::memcpy(arr->data(), "Ping", arr->size());
                                 return uvexec::send(socket, std::span(*arr))
-                                       | stdexec::then([arr]() noexcept {
-                                           return std::span(*arr);
-                                       })
-                                       | uvexec::receive(socket)
-                                       | stdexec::then([&, arr](std::size_t n) noexcept {
-                                           REQUIRE(arr->size() == n);
-                                           REQUIRE(asciiDecode(*arr) == "Pong");
-                                           delete arr;
-                                       })
-                                       | stdexec::upon_error([](auto e) noexcept {
-                                           REQUIRE(false);
-                                       });
+                                        | stdexec::then([arr]() noexcept {
+                                            return std::span(*arr);
+                                        })
+                                        | uvexec::receive(socket)
+                                        | stdexec::then([&, arr](std::size_t n) noexcept {
+                                            REQUIRE(arr->size() == n);
+                                            REQUIRE(asciiDecode(*arr) == "Pong");
+                                            delete arr;
+                                        })
+                                        | stdexec::upon_error([](auto e) noexcept {
+                                            REQUIRE(false);
+                                        });
                             })
                             | stdexec::upon_error([](auto e) noexcept {
                                 REQUIRE(false);
@@ -403,6 +405,7 @@ TEST_CASE("Ping pong multi", "[loop][tcp]") {
                 return scope.on_empty();
             });
 
+    std::this_thread::sleep_for(50ms);
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverScope.request_stop();
     serverThread.join();
@@ -515,20 +518,21 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
                 auto bytes = std::as_writable_bytes(dataBuf);
                 auto connection = new TClientConnection(socket, arr, bytes.size());
                 return uvexec::send(socket, bytes)
-                       | stdexec::let_value([&, connection]() {
-                           return connection->Scope.nest(connection->ReceiveData());
-                       })
-                       | stdexec::let_value([&, connection]() {
-                           return connection->Scope.on_empty();
-                       })
-                       | stdexec::then([connection]() {
-                           delete connection;
-                       })
-                       | stdexec::upon_error([](auto e) {
-                           REQUIRE(false);
-                       });
+                        | stdexec::let_value([&, connection]() {
+                            return connection->Scope.nest(connection->ReceiveData());
+                        })
+                        | stdexec::let_value([&, connection]() {
+                            return connection->Scope.on_empty();
+                        })
+                        | stdexec::then([connection]() {
+                            delete connection;
+                        })
+                        | stdexec::upon_error([](auto e) {
+                            REQUIRE(false);
+                        });
             });
 
+    std::this_thread::sleep_for(50ms);
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverThread.join();
 }
@@ -640,6 +644,7 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                 return scope.on_empty();
             });
 
+    std::this_thread::sleep_for(50ms);
     for (int i = 0; i < 10; ++i) {
         REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     }
