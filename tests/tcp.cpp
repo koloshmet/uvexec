@@ -473,6 +473,8 @@ public:
 }
 
 TEST_CASE("Continuous transmission", "[loop][tcp]") {
+    int invalidSegments{0};
+
     std::thread serverThread([&]{
         TLoop uvLoop;
 
@@ -484,12 +486,12 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
                     return uvexec::accept_from(listener, [&](TTcpSocket& socket) {
-                        auto connection = new TEchoServerConnection(socket, arr, [](auto data) noexcept {
+                        auto connection = new TEchoServerConnection(socket, arr, [&](auto data) noexcept {
                             if (data.size() > 4) {
                                 std::uint32_t i;
                                 std::memcpy(&i, data.data(), 4);
                                 if (i % 250 != 0) {
-                                    std::abort();
+                                    ++invalidSegments;
                                 }
                             }
                         });
@@ -536,6 +538,7 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     std::this_thread::sleep_for(50ms);
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverThread.join();
+    REQUIRE(invalidSegments == 0);
 }
 
 namespace {

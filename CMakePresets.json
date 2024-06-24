@@ -35,7 +35,8 @@
       },
       "cacheVariables": {
         "UVEXEC_WARNINGS": "/W4",
-        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN;NOMINMAX"
+        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN;NOMINMAX",
+        "CMAKE_CXX_FLAGS": "/bigobj"
       }
     },
     {
