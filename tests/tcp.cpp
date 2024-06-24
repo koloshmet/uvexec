@@ -138,7 +138,9 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
                             stdexec::just(std::ref(span))
                             | uvexec::read_until(socket, [](std::size_t) noexcept { return false; })
                             | stdexec::then([&](std::size_t n) noexcept {
-                                dataReceived = true;
+                                if (n > 0) {
+                                    dataReceived = true;
+                                }
                             }));
                 }),
                 uvexec::close(socket) | uvexec::close(listener));
