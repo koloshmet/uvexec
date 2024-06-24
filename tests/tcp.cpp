@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "stdexec/execution.hpp"
-#include "uvexec/sockets/tcp_listener.hpp"
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 
@@ -30,6 +28,7 @@
 #include <exec/finally.hpp>
 
 #include <latch>
+#include <numeric>
 #include <array>
 
 using namespace NUvExec;
@@ -506,9 +505,9 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     });
     TLoop uvLoop;
 
-    auto data = std::make_unique<std::uint32_t[]>(25'000);
-    std::span dataBuf(data.get(), 25'000);
-    std::iota(dataBuf.begin(), dataBuf.end(), 0);
+    std::vector<std::uint32_t> data(25'000);
+    std::iota(data.begin(), data.end(), 0);
+    std::span dataBuf(data);
 
     std::array<std::byte, 1000> arr;
 
@@ -617,9 +616,9 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     TLoop uvLoop;
     exec::async_scope scope;
 
-    auto data = std::make_unique<std::uint32_t[]>(25'000);
-    std::span dataBuf(data.get(), 25'000);
-    std::iota(dataBuf.begin(), dataBuf.end(), 0);
+    std::vector<std::uint32_t> data(25'000);
+    std::iota(data.begin(), data.end(), 0);
+    std::span dataBuf(data);
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
             | stdexec::then([&]() {
