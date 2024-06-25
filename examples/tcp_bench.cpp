@@ -21,8 +21,6 @@
 #include <fmt/chrono.h>
 #include <fmt/std.h>
 
-#include <iostream>
-
 
 #define ATTR_NOINLINE __attribute__((noinline))
 

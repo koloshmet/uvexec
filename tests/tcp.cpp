@@ -118,10 +118,13 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
     bool dataReceived{false};
     bool connectionAccepted{false};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
         TIp4Addr addr("127.0.0.1", TEST_PORT);
         TTcpListener listener(uvLoop, addr, 1);
+        latch.count_down();
 
         std::array<std::byte, 4> resp{};
         std::span<std::byte> span(resp);
@@ -165,7 +168,7 @@ TEST_CASE("No data to read_until", "[loop][tcp]") {
                     | exec::finally(uvexec::close(socket));
             });
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     std::ignore = stdexec::sync_wait(conn).value();
     serverThread.join();
     REQUIRE(connected);
@@ -180,10 +183,13 @@ TEST_CASE("Ping pong", "[loop][tcp]") {
 
     bool pingReceived{false};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
         TIp4Addr addr("127.0.0.1", TEST_PORT);
         TTcpListener listener(uvLoop, addr, 1);
+        latch.count_down();
 
         std::array<std::byte, 4> resp{};
 
@@ -233,7 +239,7 @@ TEST_CASE("Ping pong", "[loop][tcp]") {
             })
             | uvexec::close(socket);
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverThread.join();
     REQUIRE(pingReceived);
@@ -246,6 +252,8 @@ TEST_CASE("Ping pong facade", "[loop][tcp]") {
 
     bool pingReceived{false};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
 
@@ -256,6 +264,7 @@ TEST_CASE("Ping pong facade", "[loop][tcp]") {
                     return TIp4Addr("127.0.0.1", TEST_PORT);
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
+                    latch.count_down();
                     return uvexec::accept_from(listener, [&](TTcpSocket& socket) {
                         return uvexec::receive(socket, std::span(resp))
                                | stdexec::then([&](std::size_t n) noexcept {
@@ -290,7 +299,7 @@ TEST_CASE("Ping pong facade", "[loop][tcp]") {
                         });
             });
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverThread.join();
     REQUIRE(pingReceived);
@@ -347,6 +356,8 @@ TEST_CASE("Ping pong multi", "[loop][tcp]") {
     int pingReceived{0};
     exec::async_scope serverScope;
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
 
@@ -357,6 +368,7 @@ TEST_CASE("Ping pong multi", "[loop][tcp]") {
                     return TIp4Addr("127.0.0.1", TEST_PORT);
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
+                    latch.count_down();
                     auto server = new TServer(listener, serverScope, [&](std::span<std::byte> data) {
                         if (asciiDecode(data) == "Ping") {
                             ++pingReceived;
@@ -406,7 +418,7 @@ TEST_CASE("Ping pong multi", "[loop][tcp]") {
                 return scope.on_empty();
             });
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverScope.request_stop();
     serverThread.join();
@@ -475,22 +487,25 @@ public:
 TEST_CASE("Continuous transmission", "[loop][tcp]") {
     int invalidSegments{0};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
 
-        std::array<std::byte, 1000> arr;
+        std::array<std::byte, 400> arr;
 
         auto conn = stdexec::schedule(uvLoop.get_scheduler())
                 | stdexec::then([]() {
                     return TIp4Addr("127.0.0.1", TEST_PORT);
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
+                    latch.count_down();
                     return uvexec::accept_from(listener, [&](TTcpSocket& socket) {
                         auto connection = new TEchoServerConnection(socket, arr, [&](auto data) noexcept {
                             if (data.size() > 4) {
                                 std::uint32_t i;
                                 std::memcpy(&i, data.data(), 4);
-                                if (i % 250 != 0) {
+                                if (i % 100 != 0) {
                                     ++invalidSegments;
                                 }
                             }
@@ -511,7 +526,7 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     std::iota(data.begin(), data.end(), 0);
     std::span dataBuf(data);
 
-    std::array<std::byte, 1000> arr;
+    std::array<std::byte, 400> arr;
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
             | stdexec::then([]() {
@@ -535,7 +550,7 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
                         });
             });
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     serverThread.join();
     REQUIRE(invalidSegments == 0);
@@ -553,7 +568,7 @@ public:
     auto AcceptConnection() {
         return uvexec::accept_from(Listener, [&](TTcpSocket& socket) {
             SpawnAccept();
-            auto arr = new std::array<std::byte, 1000>;
+            auto arr = new std::array<std::byte, 400>;
             auto connection = new TEchoServerConnection(socket, *arr, [this](auto data) noexcept {
                 Processor(data);
             });
@@ -590,6 +605,8 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     exec::async_scope serverScope;
     int validSegments{0};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
 
@@ -598,11 +615,12 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                     return TIp4Addr("127.0.0.1", TEST_PORT);
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
+                    latch.count_down();
                     auto server = new TContinuousServer(listener, serverScope, [&](auto data) {
                         if (data.size() > 4) {
                             std::uint32_t i;
                             std::memcpy(&i, data.data(), 4);
-                            if (i % 250 == 0) {
+                            if (i % 100 == 0) {
                                 ++validSegments;
                             }
                         }
@@ -628,7 +646,7 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                 for (int i = 0; i < connections; ++i) {
                     scope.spawn(
                         uvexec::connect_to(TIp4Addr("127.0.0.1", TEST_PORT), [&](TTcpSocket& socket) noexcept {
-                            auto arr = new std::array<std::byte, 1000>;
+                            auto arr = new std::array<std::byte, 400>;
                             auto connection = new TClientConnection(socket, *arr, dataBuf.size_bytes());
                             return uvexec::send(socket, std::as_bytes(dataBuf))
                                 | stdexec::let_value([&, connection]() {
@@ -648,11 +666,11 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                 return scope.on_empty();
             });
 
-    std::this_thread::sleep_for(50ms);
+    latch.arrive_and_wait();
     for (int i = 0; i < 10; ++i) {
         REQUIRE_NOTHROW(stdexec::sync_wait(conn).value());
     }
     serverScope.request_stop();
     serverThread.join();
-    REQUIRE(validSegments == 100'000);
+    REQUIRE(validSegments == 250'000);
 }
