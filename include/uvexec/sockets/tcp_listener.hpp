@@ -27,7 +27,7 @@ public:
 
     struct TAccept : TIntrusiveListNode<TAccept> {
         virtual void Accept() noexcept = 0;
-        virtual void Error(NUvUtil::TUvError) noexcept = 0;
+        virtual void Error(EErrc) noexcept = 0;
     };
 
     template <stdexec::sender TSender, stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver>
@@ -78,11 +78,11 @@ public:
                 stdexec::set_value(*std::move(Receiver));
             }
         }
-        void Error(NUvUtil::TUvError err) noexcept override {
+        void Error(EErrc err) noexcept override {
             if (StopOp.Reset()) {
                 return;
             }
-            stdexec::set_error(*std::move(Receiver), EErrc{err});
+            stdexec::set_error(*std::move(Receiver), std::move(err));
         }
 
         static void StopCallback(TAcceptOpState& op) noexcept {
@@ -108,6 +108,9 @@ public:
         , PendingConnections{-static_cast<int>(backlog)}
     {
         NUvUtil::Assert(NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep)));
+        if (auto err = StartListening(); err != EErrc{0}) {
+            throw std::system_error(err);
+        }
     }
 
     void RegisterAccept(TAccept& accept);
@@ -124,9 +127,31 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
-    auto StartListening() -> NUvUtil::TUvError;
+    template <NMeta::IsIn<endpoints> TEp>
+    TTcpListener(EErrc& err, TLoop& loop, const TEp& ep, unsigned short backlog = 4096) noexcept
+        : Socket(err, loop)
+        , AcceptList{}
+        , PendingConnections{-static_cast<int>(backlog)}
+    {
+        if (err == EErrc{0}) {
+            err = EErrc{NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep))};
+        }
+        if (err == EErrc{0}) {
+            err = StartListening();
+        }
+        if (err == EErrc{0}) {
+            PendingConnections = 0;
+        }
+    }
+
+    auto StartListening() -> EErrc;
 
     static void ConnectionCallback(uv_stream_t* server, int status);
+
+    template <stdexec::sender TInSender, std::move_constructible TFn, stdexec::receiver TReceiver> requires
+        std::is_lvalue_reference_v<NMeta::TFnParameterType<TFn>> &&
+        stdexec::sender<std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>
+    friend class TBindToOpState;
 
 private:
     socket_type Socket;

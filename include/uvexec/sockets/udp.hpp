@@ -41,6 +41,16 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
+    TUdpSocket(EErrc& err, TLoop& loop, const TIp4Addr& addr) noexcept;
+
+    TUdpSocket(EErrc& err, TLoop& loop, const TIp6Addr& addr) noexcept;
+
+    template <stdexec::sender TInSender, std::move_constructible TFn, stdexec::receiver TReceiver> requires
+        std::is_lvalue_reference_v<NMeta::TFnParameterType<TFn>> &&
+        stdexec::sender<std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>
+    friend class TBindToOpState;
+
+private:
     uv_udp_t UvSocket;
 };
 
