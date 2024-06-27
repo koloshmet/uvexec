@@ -17,6 +17,7 @@
 
 #include <uvexec/uv_util/safe_uv.hpp>
 
+
 namespace NUvExec {
 
 void TTcpListener::RegisterAccept(TAccept& accept) {
@@ -25,9 +26,8 @@ void TTcpListener::RegisterAccept(TAccept& accept) {
         accept.Accept();
     } else {
         AcceptList.Add(accept);
-        if (PendingConnections < 0) {
-            auto err = StartListening();
-            if (NUvUtil::IsError(err)) {
+        if (PendingConnections < 0) [[unlikely]] {
+            if (auto err = StartListening(); err != EErrc{0}) {
                 accept.Error(err);
                 return;
             }
@@ -40,14 +40,18 @@ auto TTcpListener::Loop() noexcept -> TLoop& {
     return Socket.Loop();
 }
 
-uv_tcp_t& tag_invoke(NUvUtil::TRawUvObject, TTcpListener& listener) noexcept {
+auto tag_invoke(NUvUtil::TRawUvObject, TTcpListener& listener) noexcept -> uv_tcp_t& {
     return NUvUtil::RawUvObject(listener.Socket);
 }
 
-NUvUtil::TUvError TTcpListener::StartListening() {
+auto TTcpListener::StartListening() -> EErrc {
     auto& tcp = NUvUtil::RawUvObject(Socket);
     tcp.data = this;
-    return ::UvTcpListen(&tcp, -PendingConnections, ConnectionCallback);
+    auto err = ::UvTcpListen(&tcp, -PendingConnections, ConnectionCallback);
+    if (NUvUtil::IsError(err)) {
+        return EErrc{err};
+    }
+    return EErrc{0};
 }
 
 void TTcpListener::ConnectionCallback(uv_stream_t* server, int status) {

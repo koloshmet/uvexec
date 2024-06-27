@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
+#include <uvexec/execution/error_code.hpp>
 
 #include <uvexec/uv_util/reqs.hpp>
 #include <uvexec/uv_util/misc.hpp>
@@ -38,12 +38,15 @@ public:
         SendReq.data = this;
         auto err = NUvUtil::Send(SendReq, NUvUtil::RawUvObject(*Handle), buffs, SendCallback);
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(*this).base(), err);
+            stdexec::set_error(std::move(*this).base(), EErrc{err});
         }
     }
 
-    void set_value(std::span<std::byte> buff) noexcept {
-        Buf.base = reinterpret_cast<char*>(buff.data());
+    void set_value(std::span<const std::byte> buff) noexcept {
+        if (buff.empty()) {
+            stdexec::set_value(std::move(*this).base());
+        }
+        Buf.base = const_cast<char*>(reinterpret_cast<const char*>(buff.data()));
         Buf.len = buff.size();
         set_value(std::span(&Buf, 1));
     }
@@ -52,7 +55,7 @@ private:
     static void SendCallback(uv_udp_send_t* req, NUvUtil::TUvError status) {
         auto self = static_cast<TSendReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
-            stdexec::set_error(std::move(*self).base(), status);
+            stdexec::set_error(std::move(*self).base(), EErrc{status});
         } else {
             stdexec::set_value(std::move(*self).base());
         }
@@ -78,7 +81,7 @@ public:
         SendReq.data = this;
         auto err = NUvUtil::Send(SendReq, NUvUtil::RawUvObject(*Handle), buffs, SendCallback, NUvUtil::RawUvObject(ep));
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(*this).base(), err);
+            stdexec::set_error(std::move(*this).base(), EErrc{err});
         }
     }
 
@@ -93,7 +96,7 @@ private:
     static void SendCallback(uv_udp_send_t* req, NUvUtil::TUvError status) {
         auto self = static_cast<TSendToReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
-            stdexec::set_error(std::move(*self).base(), status);
+            stdexec::set_error(std::move(*self).base(), EErrc{status});
         } else {
             stdexec::set_value(std::move(*self).base());
         }

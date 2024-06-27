@@ -15,17 +15,15 @@
  */
 #pragma once
 
-#include <stdexcept>
+#include <uvexec/execution/error_code.hpp>
 
 
 namespace NUvUtil {
 
-using TUvError = int; // TODO: Replace native errors with error_code
+using TUvError = int;
 
-constexpr TUvError Ok{0};
 auto IsError(TUvError uvErr) noexcept -> bool;
-
-auto MakeRuntimeError(TUvError uvErr) -> std::runtime_error;
+auto ToErrc(TUvError uvErr) noexcept -> NUvExec::EErrc;
 
 void Assert(TUvError uvErr);
 

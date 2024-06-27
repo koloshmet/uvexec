@@ -15,9 +15,8 @@
  */
 #pragma once
 
+#include <uvexec/execution/error_code.hpp>
 #include <stdexec/execution.hpp>
-
-#include <uvexec/uv_util/errors.hpp>
 
 
 namespace NUvExec {
@@ -28,17 +27,17 @@ using TVoidValueCompletionSignatures = stdexec::completion_signatures<stdexec::s
 template <typename... TArgs>
 using TLengthValueCompletionSignatures = stdexec::completion_signatures<stdexec::set_value_t(std::size_t)>;
 
-using TAlgorithmCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(NUvUtil::TUvError)>;
+using TAlgorithmCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(EErrc)>;
 
 using TExceptionCompletionSignatures = stdexec::completion_signatures<stdexec::set_error_t(std::exception_ptr)>;
 
 using TCancellableAlgorithmCompletionSignatures = stdexec::completion_signatures<
-        stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
+        stdexec::set_error_t(EErrc), stdexec::set_stopped_t()>;
 
 using TScheduleCompletionSignatures = stdexec::completion_signatures<
         stdexec::set_value_t(), stdexec::set_stopped_t()>;
 
 using TScheduleEventuallyCompletionSignatures = stdexec::completion_signatures<
-        stdexec::set_value_t(), stdexec::set_error_t(NUvUtil::TUvError), stdexec::set_stopped_t()>;
+        stdexec::set_value_t(), stdexec::set_error_t(EErrc), stdexec::set_stopped_t()>;
 
 }

@@ -63,8 +63,6 @@ static void on_server_write(uv_write_t* req, int status) {
     // in any case we need to delete allocated data from memory
     TReqData* req_data = req->data;
     uv_stream_t* stream = req_data->stream;
-    TServerData* server_data = stream->data;
-    ssize_t len = (ssize_t) req_data->buf.len;
     free(req_data->buf.base);
     free(req_data);
     free(req);
@@ -76,7 +74,6 @@ static void on_server_write(uv_write_t* req, int status) {
 }
 
 static void on_server_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
-    TServerData* server_data = stream->data;
     if (nread < 0) {
         uv_read_stop(stream);
 
@@ -201,14 +198,36 @@ void UvEchoServerStop(void) {
 
 static char CLIENT_READ_BUFFER[READABLE_BUFFER_SIZE];
 
+typedef struct SClientStats {
+    int connection_limit;
+    int processed_connections;
+    int fd_limit_exceeded;
+    long long total_bytes_received;
+} TClientStats;
+
 typedef struct SClientData {
     struct sockaddr_in* addr;
     const uv_buf_t* data_buffer;
-    int* connection_limit;
     ssize_t bytes_left;
+    int rc;
 } TClientData;
 
+static int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf);
+
 static void on_client_close(uv_handle_t* handle) {
+    TClientStats* client_stats = handle->loop->data;
+    TClientData* client_data = handle->data;
+    ++client_stats->processed_connections;
+    if (client_stats->fd_limit_exceeded > 0 && --client_stats->connection_limit > 0) {
+        int status = new_connection(
+                handle->loop, client_data->addr, client_data->data_buffer);
+        if (status < 0) {
+            fprintf(stderr, "Client: Unable to connect to TCP server -> %s\n", uv_strerror(status));
+            if (status == UV_EMFILE) {
+                ++client_stats->fd_limit_exceeded;
+            }
+        }
+    }
     free(handle->data);
     free(handle);
 }
@@ -220,12 +239,12 @@ static void on_client_alloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t
 
 static void on_connect(uv_connect_t* req, int status);
 
-int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf, int* connection_limit) {
+int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* buf) {
     TClientData* client_data = malloc(sizeof(TClientData));
     client_data->data_buffer = buf;
     client_data->bytes_left = (ssize_t) buf->len;
     client_data->addr = addr;
-    client_data->connection_limit = connection_limit;
+    client_data->rc = 2;
 
     uv_tcp_t* client = malloc(sizeof(uv_tcp_t));
     uv_tcp_init(loop, client);
@@ -237,36 +256,51 @@ int new_connection(uv_loop_t* loop, struct sockaddr_in* addr, const uv_buf_t* bu
 }
 
 static void on_client_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
+    TClientData* client_data = stream->data;
     if (nread < 0) {
         uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
+        if (--client_data->rc == 0) {
+            uv_close((uv_handle_t*) stream, on_client_close);
+        }
         fprintf(stderr, "Client: Unable to read from TCP connection -> %s\n", uv_strerror((int) nread));
         return;
     }
-    TClientData* client_data = stream->data;
+    TClientStats* client_stats = stream->loop->data;
 
-    if (client_data->bytes_left == (ssize_t) client_data->data_buffer->len && --*client_data->connection_limit > 0) {
-        int status = new_connection(stream->loop, client_data->addr, client_data->data_buffer, client_data->connection_limit);
-        if (status < 0) {
-            fprintf(stderr, "Client: Unable to connect to TCP server -> %s\n", uv_strerror(status));
+    if (client_stats->fd_limit_exceeded == 0) {
+        bool first_read = client_data->bytes_left == (ssize_t) client_data->data_buffer->len;
+        if (first_read && --client_stats->connection_limit > 0) {
+            int status = new_connection(stream->loop, client_data->addr, client_data->data_buffer);
+            if (status < 0) {
+                fprintf(stderr, "Client: Unable to connect to TCP server -> %s\n", uv_strerror(status));
+                if (status == UV_EMFILE) {
+                    ++client_stats->fd_limit_exceeded;
+                }
+            }
         }
     }
+
+    TClientStats* stats = stream->loop->data;
+    stats->total_bytes_received += nread;
 
     client_data->bytes_left -= nread;
     if (client_data->bytes_left <= 0) {
         uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
+        if (--client_data->rc == 0) {
+            uv_close((uv_handle_t*) stream, on_client_close);
+        }
     }
 }
 
 static void on_client_write(uv_write_t* req, int status) {
     uv_stream_t* stream = req->data;
     free(req);
+    TClientData* client_data = stream->data;
     if (status < 0) {
-        uv_read_stop(stream);
-        uv_close((uv_handle_t*) stream, on_client_close);
         fprintf(stderr, "Client: Unable to write to TCP server: %s\n", uv_strerror(status));
-        return;
+    }
+    if (--client_data->rc == 0) {
+        uv_close((uv_handle_t*) stream, on_client_close);
     }
 }
 
@@ -299,25 +333,32 @@ void on_connect(uv_connect_t* req, int status) {
     }
 }
 
-void UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len) {
+long long UvEchoClient(int port, int connections, int init_conn, const char* data, size_t data_len) {
+    TClientStats stats = {
+            .connection_limit = connections - init_conn + 1,
+            .processed_connections = 0,
+            .fd_limit_exceeded = 0,
+            .total_bytes_received = 0
+    };
     // making LibUV loop
     uv_loop_t loop;
     uv_loop_init(&loop);
+    loop.data = &stats;
 
     // resolving address to connect to TCP server
     struct sockaddr_in addr;
     int err = uv_ip4_addr("127.0.0.1", port, &addr);
     if (err < 0) {
         fprintf(stderr, "Unable to Resolve given address on port %d -> %s\n", port, uv_strerror(err));
-        return;
+        return 0;
     }
 
-    int connection_limit = connections - init_conn;
-    uv_buf_t buf = {(char*) data, data_len};
+    uv_buf_t buf = { .base = (char*) data, .len = data_len };
     for (int i = 0; i < init_conn; ++i) {
-        new_connection(&loop, &addr, &buf, &connection_limit);
+        new_connection(&loop, &addr, &buf);
     }
 
     // starting loop
     uv_run(&loop, UV_RUN_DEFAULT);
+    return stats.total_bytes_received;
 }

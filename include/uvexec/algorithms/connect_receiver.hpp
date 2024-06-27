@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
+#include <uvexec/execution/error_code.hpp>
 
 #include <uvexec/uv_util/reqs.hpp>
 #include <uvexec/uv_util/misc.hpp>
@@ -39,14 +39,14 @@ public:
         if constexpr (std::same_as<decltype(socket), uv_udp_t&>) {
             auto err = NUvUtil::Connect(socket, NUvUtil::RawUvObject(ep));
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), err);
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             } else {
                 stdexec::set_value(std::move(*this).base());
             }
         } else {
             auto err = NUvUtil::Connect(ConnectReq, socket, NUvUtil::RawUvObject(ep), ConnectCallback);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), err);
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             }
         }
     }
@@ -55,7 +55,7 @@ private:
     static void ConnectCallback(uv_connect_t* req, NUvUtil::TUvError status) {
         auto self = static_cast<TConnectReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
-            stdexec::set_error(std::move(*self).base(), status);
+            stdexec::set_error(std::move(*self).base(), EErrc{status});
         } else {
             stdexec::set_value(std::move(*self).base());
         }

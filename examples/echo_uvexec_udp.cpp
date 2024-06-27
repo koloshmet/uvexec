@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <system_error>
 #include <uvexec/uvexec.hpp>
 
 #include <exec/async_scope.hpp>
@@ -53,11 +54,11 @@ struct UdpServer {
                             })
                             | uvexec::send_to(Listener)
                             | stdexec::upon_error([&](auto e) noexcept {
-                                if constexpr (std::same_as<decltype(e), NUvUtil::TUvError>) {
+                                if constexpr (std::constructible_from<std::error_code, decltype(e)>) {
                                     spawn_accept();
-                                    if (e != UV_EOF) {
+                                    if (std::error_code ec(e); ec != uvexec::errc::end_of_file) {
                                         fmt::println(std::cerr,
-                                                "Server: Unable to accept UDP datagram -> {}", ::uv_strerror(e));
+                                                "Server: Unable to accept UDP datagram -> {}", ec.message());
                                     }
                                 } else {
                                     fmt::println(std::cerr,

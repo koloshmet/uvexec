@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <system_error>
 #include <uvexec/uvexec.hpp>
 
 #include <exec/async_scope.hpp>
@@ -54,16 +55,16 @@ struct TcpConnection {
             spawn(stdexec::just(std::move(sndBuf))
                     | stdexec::let_value([this](std::vector<std::byte>& sndBuf) noexcept {
                         return uvexec::send(Socket, std::span(sndBuf))
-                                | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
-                                    fmt::println(std::cerr, "Server: Unable to response -> {}", ::uv_strerror(e));
+                                | stdexec::upon_error([](uvexec::errc e) noexcept {
+                                    fmt::println(std::cerr, "Server: Unable to response -> {}", std::error_code(e).message());
                                 });
                     }));
             return false;
         })
         | stdexec::then([](std::size_t) noexcept {})
-        | stdexec::upon_error([](NUvUtil::TUvError e) noexcept {
-            if (e != UV_EOF) {
-                fmt::println(std::cerr, "Server: Unable to process connection -> {}", ::uv_strerror(e));
+        | stdexec::upon_error([](uvexec::errc e) noexcept {
+            if (e != uvexec::errc::end_of_file) {
+                fmt::println(std::cerr, "Server: Unable to process connection -> {}", std::error_code(e).message());
             }
         });
     }

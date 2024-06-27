@@ -18,6 +18,7 @@
 
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/schedule.hpp>
 
 #include <exec/task.hpp>
 #include <exec/async_scope.hpp>

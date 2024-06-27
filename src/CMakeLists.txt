@@ -20,6 +20,7 @@ target_compile_options(uvexec_safe_uv PRIVATE ${UVEXEC_WARNINGS})
 target_link_libraries(uvexec_safe_uv PUBLIC uvexec_uv)
 
 add_library(uvexec_impl
+        execution/error_code.cpp
         execution/loop.cpp
         execution/runner.cpp
         sockets/addr.cpp

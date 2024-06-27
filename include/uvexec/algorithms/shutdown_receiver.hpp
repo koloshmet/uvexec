@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
+#include <uvexec/execution/error_code.hpp>
 
 #include <uvexec/uv_util/reqs.hpp>
 #include <uvexec/uv_util/misc.hpp>
@@ -36,7 +36,7 @@ public:
         ShutdownReq.data = this;
         auto err = NUvUtil::Shutdown(ShutdownReq, NUvUtil::RawUvObject(*Socket), ShutdownCallback);
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(*this).base(), err);
+            stdexec::set_error(std::move(*this).base(), EErrc{err});
         }
     }
 
@@ -44,7 +44,7 @@ private:
     static void ShutdownCallback(uv_shutdown_t* req, NUvUtil::TUvError status) {
         auto self = static_cast<TShutdownReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
-            stdexec::set_error(std::move(*self).base(), status);
+            stdexec::set_error(std::move(*self).base(), EErrc{status});
         } else {
             stdexec::set_value(std::move(*self).base());
         }

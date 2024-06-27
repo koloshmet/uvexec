@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include <concepts>
+#include <system_error>
 #include <uvexec/uv_util/errors.hpp>
 #include <uvexec/meta/meta.hpp>
 
@@ -44,10 +46,8 @@ public:
     void set_error(TErr err) noexcept {
         if constexpr (std::same_as<std::decay_t<TErr>, std::exception_ptr>) {
             Destination->template emplace<3>(std::move(err));
-        } else if constexpr (std::same_as<std::decay_t<TErr>, std::error_code>) {
+        } else if constexpr (std::constructible_from<std::error_code, TErr>) {
             Destination->template emplace<3>(std::make_exception_ptr(std::system_error(err)));
-        } else if constexpr (std::same_as<std::decay_t<TErr>, NUvUtil::TUvError>) {
-            Destination->template emplace<3>(std::make_exception_ptr(NUvUtil::MakeRuntimeError(err)));
         } else {
             Destination->template emplace<3>(std::make_exception_ptr(std::move(err)));
         }

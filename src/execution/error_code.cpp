@@ -13,27 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <uvexec/sockets/tcp.hpp>
-
-#include <uvexec/uv_util/safe_uv.hpp>
+#include <uvexec/execution/error_code.hpp>
 
 
 namespace NUvExec {
 
-TTcpSocket::TTcpSocket(TLoop& loop) {
-    NUvUtil::Assert(::uv_tcp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
+class TCategory final : public std::error_category {
+public:
+    const char* name() const noexcept override {
+        return "uv";
+    }
+    std::string message(int ec) const override {
+        return ::uv_strerror(ec);
+    }
+};
+
+const std::error_category& Category() noexcept {
+    static TCategory c;
+    return c;
 }
 
-TTcpSocket::TTcpSocket(EErrc& err, TLoop& loop) {
-    err = NUvUtil::ToErrc(::uv_tcp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
-}
-
-auto TTcpSocket::Loop() noexcept -> TLoop& {
-    return *static_cast<TLoop*>(UvSocket.loop->data);
-}
-
-auto tag_invoke(NUvUtil::TRawUvObject, TTcpSocket& socket) noexcept -> uv_tcp_t& {
-    return socket.UvSocket;
+auto make_error_code(EErrc e) noexcept -> std::error_code {
+    return {static_cast<int>(e), Category()};
 }
 
 }

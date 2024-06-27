@@ -16,6 +16,9 @@
 #pragma once
 
 #include "close_receiver.hpp"
+#include "completion_signatures.hpp"
+
+#include <uvexec/interface/uvexec.hpp>
 
 
 namespace NUvExec {

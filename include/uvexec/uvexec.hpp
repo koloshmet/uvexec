@@ -30,6 +30,8 @@
 
 namespace uvexec {
 
+using errc = NUvExec::EErrc;
+
 using loop_t = NUvExec::TLoop;
 using scheduler_t = NUvExec::TLoop::TScheduler;
 

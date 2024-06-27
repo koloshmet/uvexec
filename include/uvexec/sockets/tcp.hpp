@@ -43,6 +43,9 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
+    TTcpSocket(EErrc& err, TLoop& loop);
+
+private:
     uv_tcp_t UvSocket;
 };
 

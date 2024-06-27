@@ -43,7 +43,7 @@ public:
     void Apply() noexcept override {
         auto err = NUvUtil::Init(Timer, NUvUtil::RawUvObject(*Loop));
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), EErrc{err});
         }
         Timer.data = this;
         std::uint64_t timeout;
@@ -56,7 +56,7 @@ public:
 
         err = NUvUtil::TimerStart(Timer, AfterCallback, timeout, 0);
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), EErrc{err});
         } else {
             StopOp.Setup();
         }
@@ -107,7 +107,7 @@ class TAfterOpState {
         void set_value() noexcept {
             auto err = NUvUtil::Init(Op->Timer, NUvUtil::RawUvObject(*Op->Loop));
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), std::move(err));
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             }
             Op->Timer.data = Op;
             std::uint64_t timeout;
@@ -119,7 +119,7 @@ class TAfterOpState {
             }
             err = NUvUtil::TimerStart(Op->Timer, AfterCallback, timeout, 0);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), std::move(err));
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
                 Op->StopOp.Setup();

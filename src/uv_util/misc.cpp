@@ -17,6 +17,7 @@
 
 #include <uvexec/uv_util/safe_uv.hpp>
 
+
 auto NUvUtil::NDetail::GetData(const uv_handle_t* handle) -> void* {
     return ::uv_handle_get_data(handle);
 }
