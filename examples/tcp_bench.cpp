@@ -22,7 +22,7 @@
 #include <fmt/std.h>
 
 
-#define ATTR_NOINLINE __attribute__((noinline))
+#define ATTR_NOINLINE
 
 extern "C" {
 
