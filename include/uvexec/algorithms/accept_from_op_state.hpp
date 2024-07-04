@@ -88,11 +88,13 @@ class TAcceptFromOpState {
 
         template <typename TError>
         void set_error(TError error) noexcept {
-            OpState->EmplaceAndStartClose(std::move(*this).base(), std::move(error));
+            auto op = OpState;
+            op->EmplaceAndStartClose(std::move(*this).base(), std::move(error));
         }
 
         void set_stopped() noexcept {
-            OpState->EmplaceAndStartClose(std::move(*this).base(), stdexec::set_stopped_t{});
+            auto op = OpState;
+            op->EmplaceAndStartClose(std::move(*this).base(), stdexec::set_stopped_t{});
         }
 
     private:
@@ -112,8 +114,15 @@ public:
     {}
 
     friend void tag_invoke(stdexec::start_t, TAcceptFromOpState& op) noexcept {
+        EErrc err;
+        op.Socket.emplace(Lazy([&]() noexcept {
+            return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(op.Receiver))));
+        }));
+        if (err != EErrc{0}) {
+            stdexec::set_error(std::move(op.Receiver), std::move(err));
+            return;
+        }
         try {
-            op.Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(op.Receiver))));
             op.OpState.template emplace<1>(Lazy([&] {
                 return stdexec::connect(
                         uvexec::accept(std::move(op.InSender), *op.Listener, *op.Socket),

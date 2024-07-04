@@ -18,7 +18,6 @@
 #include <exec/task.hpp>
 #include <exec/single_thread_context.hpp>
 #include <exec/async_scope.hpp>
-#include <exec/finally.hpp>
 #include <exec/when_any.hpp>
 #include <exec/repeat_effect_until.hpp>
 

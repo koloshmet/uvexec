@@ -127,21 +127,21 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
-    template <NMeta::IsIn<endpoints> TEp>
-    TTcpListener(EErrc& err, TLoop& loop, const TEp& ep, unsigned short backlog = 4096) noexcept
+    TTcpListener(EErrc& err, TLoop& loop, unsigned short backlog = 4096) noexcept
         : Socket(err, loop)
         , AcceptList{}
         , PendingConnections{-static_cast<int>(backlog)}
-    {
-        if (err == EErrc{0}) {
-            err = EErrc{NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep))};
-        }
-        if (err == EErrc{0}) {
-            err = StartListening();
-        }
-        if (err == EErrc{0}) {
+    {}
+
+    template <NMeta::IsIn<endpoints> TEp>
+    auto Bind(const TEp& ep) -> EErrc {
+        auto e = NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep));
+        if (!NUvUtil::IsError(e)) {
+            auto err = StartListening();
             PendingConnections = 0;
+            return err;
         }
+        return EErrc{e};
     }
 
     auto StartListening() -> EErrc;

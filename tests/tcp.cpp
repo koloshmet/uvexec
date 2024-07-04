@@ -492,7 +492,7 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     std::thread serverThread([&]{
         TLoop uvLoop;
 
-        std::array<std::byte, 400> arr;
+        std::array<std::byte, 999> arr;
 
         auto conn = stdexec::schedule(uvLoop.get_scheduler())
                 | stdexec::then([]() {
@@ -501,15 +501,37 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
                     latch.count_down();
                     return uvexec::accept_from(listener, [&](TTcpSocket& socket) {
-                        auto connection = new TEchoServerConnection(socket, arr, [&](auto data) noexcept {
-                            if (data.size() > 4) {
-                                std::uint32_t i;
-                                std::memcpy(&i, data.data(), 4);
-                                if (i % 100 != 0) {
-                                    ++invalidSegments;
-                                }
-                            }
-                        });
+                        std::uint32_t u32{0};
+                        std::uint8_t u8{0};
+                        auto connection = new TEchoServerConnection(socket, arr,
+                                [&, p = u32, c = u32, cb = u8](auto data) mutable noexcept {
+                                    if (data.size() == 0) {
+                                        return;
+                                    }
+                                    std::size_t startPos = 0;
+                                    if (cb != 0) {
+                                        startPos = sizeof(c) - cb;
+                                        std::memcpy(reinterpret_cast<char*>(&c) + cb, data.data(), startPos);
+                                        if (c != p + 1) {
+                                            ++invalidSegments;
+                                        }
+                                        p = c;
+                                    }
+                                    auto i = startPos;
+                                    for (; i + sizeof(c) <= data.size(); i += sizeof(c)) {
+                                        std::memcpy(&c, data.data() + i, sizeof(c));
+                                        if (c != p + 1) {
+                                            ++invalidSegments;
+                                        }
+                                        p = c;
+                                    }
+                                    if (data.size() % sizeof(c) != startPos) {
+                                        cb = data.size() - i;
+                                        std::memcpy(&c, data.data() + i, cb);
+                                    } else {
+                                        cb = 0;
+                                    }
+                                });
                         return connection->Scope.nest(connection->ReceiveData())
                                 | stdexec::let_value([&, connection]() {
                                     return connection->Scope.on_empty();
@@ -523,10 +545,10 @@ TEST_CASE("Continuous transmission", "[loop][tcp]") {
     TLoop uvLoop;
 
     std::vector<std::uint32_t> data(25'000);
-    std::iota(data.begin(), data.end(), 0);
+    std::iota(data.begin(), data.end(), 1);
     std::span dataBuf(data);
 
-    std::array<std::byte, 400> arr;
+    std::array<std::byte, 999> arr;
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
             | stdexec::then([]() {
@@ -568,9 +590,9 @@ public:
     auto AcceptConnection() {
         return uvexec::accept_from(Listener, [&](TTcpSocket& socket) {
             SpawnAccept();
-            auto arr = new std::array<std::byte, 400>;
-            auto connection = new TEchoServerConnection(socket, *arr, [this](auto data) noexcept {
-                Processor(data);
+            auto arr = new std::array<std::byte, 999>;
+            auto connection = new TEchoServerConnection(socket, *arr, [fn = Processor](auto data) mutable noexcept {
+                fn(data);
             });
             return connection->Scope.nest(connection->ReceiveData())
                     | stdexec::let_value([&, connection]() {
@@ -603,7 +625,8 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     constexpr auto connections = 100;
 
     exec::async_scope serverScope;
-    int validSegments{0};
+    int validInts{0};
+    int invalidSegments{0};
 
     std::latch latch(2);
 
@@ -616,16 +639,42 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                 })
                 | uvexec::bind_to([&](TTcpListener& listener) noexcept {
                     latch.count_down();
-                    auto server = new TContinuousServer(listener, serverScope, [&](auto data) {
-                        if (data.size() > 4) {
-                            std::uint32_t i;
-                            std::memcpy(&i, data.data(), 4);
-                            if (i % 100 == 0) {
-                                ++validSegments;
-                            }
-                        }
-                        return data;
-                    });
+                    std::uint32_t u32{0};
+                    std::uint8_t u8{0};
+                    auto server = new TContinuousServer(
+                            listener, serverScope,
+                            [&, p = u32, c = u32, cb = u8](auto data) mutable noexcept {
+                                    if (data.size() == 0) {
+                                        return;
+                                    }
+                                    std::size_t startPos = 0;
+                                    if (cb != 0) {
+                                        startPos = sizeof(c) - cb;
+                                        std::memcpy(reinterpret_cast<char*>(&c) + cb, data.data(), startPos);
+                                        if (c == p + 1) {
+                                            ++validInts;
+                                        } else {
+                                            ++invalidSegments;
+                                        }
+                                        p = c;
+                                    }
+                                    auto i = startPos;
+                                    for (; i + sizeof(c) <= data.size(); i += sizeof(c)) {
+                                        std::memcpy(&c, data.data() + i, sizeof(c));
+                                        if (c == p + 1) {
+                                            ++validInts;
+                                        } else {
+                                            ++invalidSegments;
+                                        }
+                                        p = c;
+                                    }
+                                    if (data.size() % sizeof(c) != startPos) {
+                                        cb = data.size() - i;
+                                        std::memcpy(&c, data.data() + i, cb);
+                                    } else {
+                                        cb = 0;
+                                    }
+                                });
                     return server->Run()
                             | stdexec::then([server]() {
                                 delete server;
@@ -638,7 +687,7 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     exec::async_scope scope;
 
     std::vector<std::uint32_t> data(25'000);
-    std::iota(data.begin(), data.end(), 0);
+    std::iota(data.begin(), data.end(), 1);
     std::span dataBuf(data);
 
     auto conn = stdexec::schedule(uvLoop.get_scheduler())
@@ -646,7 +695,7 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
                 for (int i = 0; i < connections; ++i) {
                     scope.spawn(
                         uvexec::connect_to(TIp4Addr("127.0.0.1", TEST_PORT), [&](TTcpSocket& socket) noexcept {
-                            auto arr = new std::array<std::byte, 400>;
+                            auto arr = new std::array<std::byte, 999>;
                             auto connection = new TClientConnection(socket, *arr, dataBuf.size_bytes());
                             return uvexec::send(socket, std::as_bytes(dataBuf))
                                 | stdexec::let_value([&, connection]() {
@@ -672,5 +721,6 @@ TEST_CASE("Multiple continuous transmissions", "[loop][tcp]") {
     }
     serverScope.request_stop();
     serverThread.join();
-    REQUIRE(validSegments == 250'000);
+    REQUIRE(invalidSegments == 0);
+    REQUIRE(validInts == 25'000'000);
 }

@@ -30,32 +30,16 @@ TUdpSocket::TUdpSocket(TLoop& loop, const TIp6Addr& addr) {
     NUvUtil::Assert(::UvUdpIn6Bind(&UvSocket, &NUvUtil::RawUvObject(addr)));
 }
 
-TUdpSocket::TUdpSocket(EErrc& err, TLoop& loop, const TIp4Addr& addr) noexcept {
-    auto initErr = ::uv_udp_init(&NUvUtil::RawUvObject(loop), &UvSocket);
-    if (NUvUtil::IsError(initErr)) {
-        err = EErrc{initErr};
-        return;
-    }
-    auto bindErr = ::UvUdpInBind(&UvSocket, &NUvUtil::RawUvObject(addr));
-    if (NUvUtil::IsError(initErr)) {
-        err = EErrc{bindErr};
-        return;
-    }
-    err = EErrc{0};
+TUdpSocket::TUdpSocket(EErrc& err, TLoop& loop) noexcept {
+    err = NUvUtil::ToErrc(::uv_udp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
 }
 
-TUdpSocket::TUdpSocket(EErrc& err, TLoop& loop, const TIp6Addr& addr) noexcept {
-    auto initErr = ::uv_udp_init(&NUvUtil::RawUvObject(loop), &UvSocket);
-    if (NUvUtil::IsError(initErr)) {
-        err = EErrc{initErr};
-        return;
-    }
-    auto bindErr = ::UvUdpIn6Bind(&UvSocket, &NUvUtil::RawUvObject(addr));
-    if (NUvUtil::IsError(initErr)) {
-        err = EErrc{bindErr};
-        return;
-    }
-    err = EErrc{0};
+auto TUdpSocket::Bind(const TIp4Addr& addr) -> EErrc {
+    return NUvUtil::ToErrc(::UvUdpInBind(&UvSocket, &NUvUtil::RawUvObject(addr)));
+}
+
+auto TUdpSocket::Bind(const TIp6Addr& addr) -> EErrc {
+    return NUvUtil::ToErrc(::UvUdpIn6Bind(&UvSocket, &NUvUtil::RawUvObject(addr)));
 }
 
 auto TUdpSocket::Loop() noexcept -> TLoop& {
