@@ -17,10 +17,15 @@
 
 #include <uvexec/uv_util/safe_uv.hpp>
 
+
 namespace NUvExec {
 
 TTcpSocket::TTcpSocket(TLoop& loop) {
     NUvUtil::Assert(::uv_tcp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
+}
+
+TTcpSocket::TTcpSocket(EErrc& err, TLoop& loop) {
+    err = NUvUtil::ToErrc(::uv_tcp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
 }
 
 auto TTcpSocket::Loop() noexcept -> TLoop& {

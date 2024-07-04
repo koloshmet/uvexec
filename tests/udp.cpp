@@ -19,6 +19,7 @@
 #include <uvexec/execution/loop.hpp>
 #include <uvexec/sockets/udp.hpp>
 #include <uvexec/algorithms/after.hpp>
+#include <uvexec/algorithms/schedule.hpp>
 #include <uvexec/algorithms/connect_to.hpp>
 #include <uvexec/algorithms/bind_to.hpp>
 
@@ -108,10 +109,13 @@ TEST_CASE("Ping pong", "[loop][udp]") {
 
     bool pingReceived{false};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
         TIp4Addr addr("127.0.0.1", TEST_PORT);
         TUdpSocket socket(uvLoop, addr);
+        latch.count_down();
 
         std::array<std::byte, 4> req{};
 
@@ -154,7 +158,8 @@ TEST_CASE("Ping pong", "[loop][udp]") {
                 REQUIRE(asciiDecode(arr) == "Pong");
             })
             | uvexec::close(socket);
-    std::this_thread::sleep_for(50ms);
+
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();
     REQUIRE(pingReceived);
@@ -167,10 +172,13 @@ TEST_CASE("Ping pong connected", "[loop][udp]") {
 
     bool pingReceived{false};
 
+    std::latch latch(2);
+
     std::thread serverThread([&]{
         TLoop uvLoop;
         TIp4Addr addr("127.0.0.1", TEST_PORT);
         TUdpSocket socket(uvLoop, addr);
+        latch.count_down();
 
         std::array<std::byte, 4> req{};
 
@@ -216,7 +224,8 @@ TEST_CASE("Ping pong connected", "[loop][udp]") {
                     REQUIRE(asciiDecode(arr) == "Pong");
                 })
                 | uvexec::close(socket);
-    std::this_thread::sleep_for(50ms);
+
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();
     REQUIRE(pingReceived);
@@ -228,6 +237,8 @@ TEST_CASE("Ping pong connected facade", "[loop][udp]") {
     };
 
     bool pingReceived{false};
+
+    std::latch latch(2);
 
     std::thread serverThread([&]{
         TLoop uvLoop;
@@ -241,6 +252,7 @@ TEST_CASE("Ping pong connected facade", "[loop][udp]") {
                     return TIp4Addr("127.0.0.1", TEST_PORT);
                 })
                 | uvexec::bind_to([&](TUdpSocket& socket) noexcept {
+                    latch.count_down();
                     return uvexec::receive_from(socket, std::span(req), peer)
                             | stdexec::let_value([&](std::size_t n) noexcept {
                                 pingReceived = asciiDecode(req) == "Ping";
@@ -271,7 +283,8 @@ TEST_CASE("Ping pong connected facade", "[loop][udp]") {
                             REQUIRE(asciiDecode(arr) == "Pong");
                         });
             });
-    std::this_thread::sleep_for(50ms);
+
+    latch.arrive_and_wait();
     REQUIRE_NOTHROW(stdexec::sync_wait(std::move(conn)).value());
     serverThread.join();
     REQUIRE(pingReceived);

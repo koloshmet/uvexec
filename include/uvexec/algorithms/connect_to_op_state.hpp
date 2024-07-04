@@ -118,24 +118,32 @@ public:
     {}
 
     friend void tag_invoke(stdexec::start_t, TConnectToOpState& op) noexcept {
-        try {
-            auto env = stdexec::get_env(op.Receiver);
-            using TEndpoint = NMeta::TRemoveReferenceWrapperType<std::tuple_element_t<
-                    0, stdexec::value_types_of_t<TInSender, TEnv, NMeta::TDecayedTuple, std::type_identity_t>>>;
-            if constexpr (std::constructible_from<TSocket, TLoop&>) {
-                op.Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(env)));
-            } else {
-                op.Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(env)), DefaultAddr<TEndpoint>());
-            }
-            op.OpState.template emplace<1>(Lazy([&]{
-                return stdexec::connect(
-                        uvexec::connect(std::move(op.InSender), *op.Socket),
-                        TConnectToReceiver(&op, std::move(op.Receiver)));
-            }));
-            stdexec::start(std::get<1>(op.OpState));
-        } catch (...) {
-            stdexec::set_error(std::move(op.Receiver), std::current_exception());
+        op.EmplaceAndStartInitially();
+    }
+
+    void EmplaceAndStartInitially() {
+        auto env = stdexec::get_env(Receiver);
+
+        EErrc err;
+        Socket.emplace(Lazy([&]() noexcept {
+            return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(env)));
+        }));
+        if (err != EErrc{0}) {
+            stdexec::set_error(std::move(Receiver), std::move(err));
+            return;
         }
+
+        try {
+            OpState.template emplace<1>(Lazy([&]{
+            return stdexec::connect(
+                    uvexec::connect(std::move(InSender), *Socket),
+                    TConnectToReceiver(this, std::move(Receiver)));
+            }));
+        } catch (...) {
+            stdexec::set_error(std::move(Receiver), std::current_exception());
+            return;
+        }
+        stdexec::start(std::get<1>(OpState));
     }
 
     void EmplaceAndStartBody(TReceiver&& rec) {

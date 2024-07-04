@@ -15,9 +15,10 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
+#include <uvexec/execution/error_code.hpp>
 
 #include <uvexec/uv_util/reqs.hpp>
+#include <uvexec/uv_util/misc.hpp>
 
 #include <span>
 
@@ -37,12 +38,12 @@ public:
         WriteReq.data = this;
         auto err = NUvUtil::Write(WriteReq, NUvUtil::RawUvObject(*Handle), buffs, WriteCallback);
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(*this).base(), err);
+            stdexec::set_error(std::move(*this).base(), EErrc{err});
         }
     }
 
-    void set_value(std::span<std::byte> buff) noexcept {
-        Buf.base = reinterpret_cast<char*>(buff.data());
+    void set_value(std::span<const std::byte> buff) noexcept {
+        Buf.base = const_cast<char*>(reinterpret_cast<const char*>(buff.data()));
         Buf.len = buff.size();
         set_value(std::span(&Buf, 1));
     }
@@ -51,7 +52,7 @@ private:
     static void WriteCallback(uv_write_t* req, NUvUtil::TUvError status) {
         auto self = static_cast<TWriteReceiver*>(req->data);
         if (NUvUtil::IsError(status)) {
-            stdexec::set_error(std::move(*self).base(), status);
+            stdexec::set_error(std::move(*self).base(), EErrc{status});
         } else {
             stdexec::set_value(std::move(*self).base());
         }

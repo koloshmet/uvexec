@@ -13,21 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <uvexec/uvexec.hpp>
+#include <uvexec/execution/error_code.hpp>
 
-#include <exec/task.hpp>
-#include <exec/single_thread_context.hpp>
-#include <exec/async_scope.hpp>
-#include <exec/when_any.hpp>
-#include <exec/repeat_effect_until.hpp>
 
-#include <iostream>
-#include <fmt/std.h>
-#include <fmt/ranges.h>
-#include <fmt/chrono.h>
+namespace NUvExec {
 
-using namespace std::literals;
+class TCategory final : public std::error_category {
+public:
+    const char* name() const noexcept override {
+        return "uv";
+    }
+    std::string message(int ec) const override {
+        return ::uv_strerror(ec);
+    }
+};
 
-auto main() -> int {
-    return 0;
+const std::error_category& Category() noexcept {
+    static TCategory c;
+    return c;
+}
+
+auto make_error_code(EErrc e) noexcept -> std::error_code {
+    return {static_cast<int>(e), Category()};
+}
+
 }

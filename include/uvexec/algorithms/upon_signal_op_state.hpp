@@ -38,12 +38,12 @@ public:
     void Apply() noexcept override {
         auto err = NUvUtil::Init(Signal, NUvUtil::RawUvObject(*Loop));
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), EErrc{err});
         }
         Signal.data = this;
         err = NUvUtil::SignalOnce(Signal, SignalCallback, Signum);
         if (NUvUtil::IsError(err)) {
-            stdexec::set_error(std::move(Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), EErrc{err});
         } else {
             StopOp.Setup();
         }
@@ -94,12 +94,12 @@ class TUponSignalOpState {
         void set_value() noexcept {
             auto err = NUvUtil::Init(Op->Signal, NUvUtil::RawUvObject(*Op->Loop));
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), std::move(err));
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             }
             Op->Signal.data = Op;
             err = NUvUtil::SignalOnce(Op->Signal, SignalCallback, Op->Signum);
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(std::move(*this).base(), std::move(err));
+                stdexec::set_error(std::move(*this).base(), EErrc{err});
             } else {
                 Op->Receiver.emplace(std::move(*this).base());
                 Op->StopOp.Setup();

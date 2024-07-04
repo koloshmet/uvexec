@@ -17,6 +17,7 @@
 
 #include <uvexec/uv_util/safe_uv.hpp>
 
+
 namespace NUvExec {
 
 TUdpSocket::TUdpSocket(TLoop& loop, const TIp4Addr& addr) {
@@ -27,6 +28,18 @@ TUdpSocket::TUdpSocket(TLoop& loop, const TIp4Addr& addr) {
 TUdpSocket::TUdpSocket(TLoop& loop, const TIp6Addr& addr) {
     NUvUtil::Assert(::uv_udp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
     NUvUtil::Assert(::UvUdpIn6Bind(&UvSocket, &NUvUtil::RawUvObject(addr)));
+}
+
+TUdpSocket::TUdpSocket(EErrc& err, TLoop& loop) noexcept {
+    err = NUvUtil::ToErrc(::uv_udp_init(&NUvUtil::RawUvObject(loop), &UvSocket));
+}
+
+auto TUdpSocket::Bind(const TIp4Addr& addr) -> EErrc {
+    return NUvUtil::ToErrc(::UvUdpInBind(&UvSocket, &NUvUtil::RawUvObject(addr)));
+}
+
+auto TUdpSocket::Bind(const TIp6Addr& addr) -> EErrc {
+    return NUvUtil::ToErrc(::UvUdpIn6Bind(&UvSocket, &NUvUtil::RawUvObject(addr)));
 }
 
 auto TUdpSocket::Loop() noexcept -> TLoop& {

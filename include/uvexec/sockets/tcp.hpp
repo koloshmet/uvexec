@@ -43,6 +43,21 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
+    TTcpSocket(EErrc& err, TLoop& loop);
+
+    template <stdexec::sender TInSender, typename TListener, std::move_constructible TFn, stdexec::receiver TReceiver>
+        requires
+            std::is_lvalue_reference_v<NMeta::TFnParameterType<TFn>> &&
+            std::same_as<std::decay_t<NMeta::TFnParameterType<TFn>>, uvexec::socket_type_t<TListener>> &&
+            stdexec::sender<std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>
+    friend class TAcceptFromOpState;
+
+    template <stdexec::sender TInSender, std::move_constructible TFn, stdexec::receiver TReceiver> requires
+        std::is_lvalue_reference_v<NMeta::TFnParameterType<TFn>> &&
+        stdexec::sender<std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>
+    friend class TConnectToOpState;
+
+private:
     uv_tcp_t UvSocket;
 };
 

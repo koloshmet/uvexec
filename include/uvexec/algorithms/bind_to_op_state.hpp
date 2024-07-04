@@ -47,7 +47,10 @@ class TBindToOpState {
         template <typename TEp>
         void set_value(const TEp& ep) noexcept {
             try {
-                OpState->EmplaceAndStartBody(std::move(*this).base(), ep);
+                auto err = OpState->EmplaceAndStartBody(std::move(*this).base(), ep);
+                if (err != EErrc{0}) {
+                    stdexec::set_error(std::move(*this).base(), std::move(err));
+                }
             } catch (...) {
                 stdexec::set_error(std::move(*this).base(), std::current_exception());
             }
@@ -57,7 +60,25 @@ class TBindToOpState {
         TBindToOpState* OpState;
     };
 
+    class TBindErrReceiver : public stdexec::receiver_adaptor<TBindErrReceiver, TReceiver> {
+        friend stdexec::receiver_adaptor<TBindErrReceiver, TReceiver>;
+
+    public:
+        explicit TBindErrReceiver(EErrc err, TReceiver receiver) noexcept
+            : stdexec::receiver_adaptor<TBindErrReceiver, TReceiver>(std::move(receiver))
+            , Err{err}
+        {}
+
+        void set_value() noexcept {
+            stdexec::set_error(std::move(*this).base(), std::move(Err));
+        }
+
+    private:
+        EErrc Err;
+    };
+
     using TInOpState = stdexec::connect_result_t<TInSender, TBindToReceiver>;
+    using TErrOpState = stdexec::connect_result_t<std::invoke_result_t<uvexec::close_t, TSocket&>, TBindErrReceiver>;
 
 public:
     TBindToOpState(TInSender inSender, TFn fun, TReceiver receiver) noexcept
@@ -74,21 +95,37 @@ public:
     }
 
     template <typename TEp>
-    void EmplaceAndStartBody(TReceiver&& rec, const TEp& ep) {
-        Socket.emplace(TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(rec))), ep);
-        OpState.template emplace<1>(Lazy([&] {
-            return stdexec::connect(
-                    exec::finally(
-                            std::invoke(std::move(Fn), *Socket),
-                            uvexec::close(*Socket)),
-                    std::move(rec));
+    auto EmplaceAndStartBody(TReceiver&& rec, const TEp& ep) -> EErrc {
+        EErrc err;
+        Socket.emplace(Lazy([&]() noexcept {
+            return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(rec))));
         }));
-        stdexec::start(std::get<1>(OpState));
+        if (err != EErrc{0}) {
+            return err;
+        }
+        err = Socket->Bind(ep);
+        if (err != EErrc{0}) {
+            OpState.template emplace<1>(Lazy([&] {
+                return stdexec::connect(uvexec::close(*Socket), TBindErrReceiver(err, std::move(rec)));
+            }));
+        } else {
+            OpState.template emplace<2>(Lazy([&] {
+                return stdexec::connect(
+                        exec::finally(
+                                std::invoke(std::move(Fn), *Socket),
+                                uvexec::close(*Socket)),
+                        std::move(rec));
+            }));
+        }
+        std::visit([](auto& op) noexcept {
+            stdexec::start(op);
+        }, OpState);
+        return EErrc{0};
     }
 
 private:
     std::optional<TSocket> Socket;
-    std::variant<TInOpState, TOutOpState> OpState;
+    std::variant<TInOpState, TErrOpState, TOutOpState> OpState;
     TFn Fn;
 };
 

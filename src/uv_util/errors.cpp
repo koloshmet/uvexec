@@ -15,8 +15,6 @@
  */
 #include <uvexec/uv_util/errors.hpp>
 
-#include <uv.h>
-
 #include <cstdio>
 
 
@@ -24,13 +22,16 @@ auto NUvUtil::IsError(TUvError uvErr) noexcept -> bool {
     return uvErr < 0;
 }
 
-auto NUvUtil::MakeRuntimeError(TUvError uvErr) -> std::runtime_error {
-    return std::runtime_error(::uv_strerror(uvErr));
+auto NUvUtil::ToErrc(TUvError uvErr) noexcept -> NUvExec::EErrc {
+    if (IsError(uvErr)) {
+        return NUvExec::EErrc{uvErr};
+    }
+    return NUvExec::EErrc{0};
 }
 
 void NUvUtil::Assert(TUvError uvErr) {
     if (IsError(uvErr)) [[unlikely]] {
-        throw MakeRuntimeError(uvErr);
+        throw std::system_error(NUvExec::EErrc{uvErr});
     }
 }
 

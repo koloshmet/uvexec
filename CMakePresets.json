@@ -33,9 +33,12 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
+      "generator": "Visual Studio 17 2022",
       "cacheVariables": {
         "UVEXEC_WARNINGS": "/W4",
-        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN;NOMINMAX"
+        "UVEXEC_DEFINITIONS": "WIN32_LEAN_AND_MEAN;NOMINMAX",
+        "CMAKE_CXX_FLAGS": "/bigobj",
+        "CMAKE_GENERATOR_TOOLSET": "v143"
       }
     },
     {

@@ -27,7 +27,7 @@ public:
 
     struct TAccept : TIntrusiveListNode<TAccept> {
         virtual void Accept() noexcept = 0;
-        virtual void Error(NUvUtil::TUvError) noexcept = 0;
+        virtual void Error(EErrc) noexcept = 0;
     };
 
     template <stdexec::sender TSender, stdexec::receiver_of<TAlgorithmCompletionSignatures> TReceiver>
@@ -73,16 +73,16 @@ public:
             }
             auto err = NUvUtil::Accept(NUvUtil::RawUvObject(*Listener), NUvUtil::RawUvObject(*Socket));
             if (NUvUtil::IsError(err)) {
-                stdexec::set_error(*std::move(Receiver), err);
+                stdexec::set_error(*std::move(Receiver), EErrc{err});
             } else {
                 stdexec::set_value(*std::move(Receiver));
             }
         }
-        void Error(NUvUtil::TUvError err) noexcept override {
+        void Error(EErrc err) noexcept override {
             if (StopOp.Reset()) {
                 return;
             }
-            stdexec::set_error(*std::move(Receiver), err);
+            stdexec::set_error(*std::move(Receiver), std::move(err));
         }
 
         static void StopCallback(TAcceptOpState& op) noexcept {
@@ -108,6 +108,9 @@ public:
         , PendingConnections{-static_cast<int>(backlog)}
     {
         NUvUtil::Assert(NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep)));
+        if (auto err = StartListening(); err != EErrc{0}) {
+            throw std::system_error(err);
+        }
     }
 
     void RegisterAccept(TAccept& accept);
@@ -124,9 +127,31 @@ public:
     auto Loop() noexcept -> TLoop&;
 
 private:
-    auto StartListening() -> NUvUtil::TUvError;
+    TTcpListener(EErrc& err, TLoop& loop, unsigned short backlog = 4096) noexcept
+        : Socket(err, loop)
+        , AcceptList{}
+        , PendingConnections{-static_cast<int>(backlog)}
+    {}
+
+    template <NMeta::IsIn<endpoints> TEp>
+    auto Bind(const TEp& ep) -> EErrc {
+        auto e = NUvUtil::Bind(NUvUtil::RawUvObject(Socket), NUvUtil::RawUvObject(ep));
+        if (!NUvUtil::IsError(e)) {
+            auto err = StartListening();
+            PendingConnections = 0;
+            return err;
+        }
+        return EErrc{e};
+    }
+
+    auto StartListening() -> EErrc;
 
     static void ConnectionCallback(uv_stream_t* server, int status);
+
+    template <stdexec::sender TInSender, std::move_constructible TFn, stdexec::receiver TReceiver> requires
+        std::is_lvalue_reference_v<NMeta::TFnParameterType<TFn>> &&
+        stdexec::sender<std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>
+    friend class TBindToOpState;
 
 private:
     socket_type Socket;

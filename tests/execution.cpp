@@ -116,6 +116,27 @@ TEST_CASE("High concurrent schedule", "[loop]") {
     REQUIRE(std::all_of(executed.begin(), executed.end(), [](int i) noexcept { return i == 1; }));
 }
 
+TEST_CASE("On", "[loop]") {
+    constexpr int iterations = 1000;
+
+    TLoop uvLoop;
+    exec::async_scope scope;
+    int counter{0};
+
+    for (int i = 0; i < iterations; ++i) {
+        scope.spawn(stdexec::on(uvLoop.get_scheduler(), stdexec::just() | stdexec::then([&]() noexcept {
+            ++counter;
+        })));
+    }
+    REQUIRE(counter == 0);
+
+    stdexec::sync_wait(stdexec::schedule(uvLoop.get_scheduler()) | stdexec::let_value([&]{
+        return scope.on_empty();
+    }));
+
+    REQUIRE(counter == iterations);
+}
+
 TEST_CASE("Cancelled before progress", "[loop]") {
     TLoop loop;
 

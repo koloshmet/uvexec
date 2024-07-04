@@ -16,6 +16,7 @@
 #pragma once
 
 #include "send_receiver.hpp"
+#include "completion_signatures.hpp"
 
 
 namespace NUvExec {

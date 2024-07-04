@@ -15,8 +15,6 @@
  */
 #pragma once
 
-#include "completion_signatures.hpp"
-
 #include <uvexec/uv_util/reqs.hpp>
 #include <uvexec/uv_util/misc.hpp>
 

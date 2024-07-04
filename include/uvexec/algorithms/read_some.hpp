@@ -16,6 +16,7 @@
 #pragma once
 
 #include "read_some_op_state.hpp"
+#include "completion_signatures.hpp"
 
 
 namespace NUvExec {
