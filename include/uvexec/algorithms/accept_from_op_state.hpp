@@ -114,23 +114,27 @@ public:
     {}
 
     friend void tag_invoke(stdexec::start_t, TAcceptFromOpState& op) noexcept {
+        op.EmplaceAndStartInitially();
+    }
+
+    void EmplaceAndStartInitially() {
         EErrc err;
-        op.Socket.emplace(Lazy([&]() noexcept {
-            return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(op.Receiver))));
+        Socket.emplace(Lazy([&]() noexcept {
+            return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(stdexec::get_env(Receiver))));
         }));
         if (err != EErrc{0}) {
-            stdexec::set_error(std::move(op.Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), std::move(err));
             return;
         }
         try {
-            op.OpState.template emplace<1>(Lazy([&] {
+            OpState.template emplace<1>(Lazy([&] {
                 return stdexec::connect(
-                        uvexec::accept(std::move(op.InSender), *op.Listener, *op.Socket),
-                        TAcceptFromReceiver(&op, std::move(op.Receiver)));
+                        uvexec::accept(std::move(InSender), *Listener, *Socket),
+                        TAcceptFromReceiver(this, std::move(Receiver)));
             }));
-            stdexec::start(std::get<1>(op.OpState));
+            stdexec::start(std::get<1>(OpState));
         } catch (...) {
-            stdexec::set_error(std::move(op.Receiver), std::current_exception());
+            stdexec::set_error(std::move(Receiver), std::current_exception());
         }
     }
 

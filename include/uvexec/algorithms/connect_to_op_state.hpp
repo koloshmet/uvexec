@@ -118,28 +118,32 @@ public:
     {}
 
     friend void tag_invoke(stdexec::start_t, TConnectToOpState& op) noexcept {
-        auto env = stdexec::get_env(op.Receiver);
+        op.EmplaceAndStartInitially();
+    }
+
+    void EmplaceAndStartInitially() {
+        auto env = stdexec::get_env(Receiver);
 
         EErrc err;
-        op.Socket.emplace(Lazy([&]() noexcept {
+        Socket.emplace(Lazy([&]() noexcept {
             return TSocket(err, TLoop::TDomain{}.GetLoop(stdexec::get_scheduler(env)));
         }));
         if (err != EErrc{0}) {
-            stdexec::set_error(std::move(op.Receiver), std::move(err));
+            stdexec::set_error(std::move(Receiver), std::move(err));
             return;
         }
 
         try {
-            op.OpState.template emplace<1>(Lazy([&]{
+            OpState.template emplace<1>(Lazy([&]{
             return stdexec::connect(
-                    uvexec::connect(std::move(op.InSender), *op.Socket),
-                    TConnectToReceiver(&op, std::move(op.Receiver)));
+                    uvexec::connect(std::move(InSender), *Socket),
+                    TConnectToReceiver(this, std::move(Receiver)));
             }));
         } catch (...) {
-            stdexec::set_error(std::move(op.Receiver), std::current_exception());
+            stdexec::set_error(std::move(Receiver), std::current_exception());
             return;
         }
-        stdexec::start(std::get<1>(op.OpState));
+        stdexec::start(std::get<1>(OpState));
     }
 
     void EmplaceAndStartBody(TReceiver&& rec) {
