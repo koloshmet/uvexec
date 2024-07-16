@@ -49,7 +49,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TBindToSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TInSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TInSender, TEnv,
                 TExceptionCompletionSignatures, TFnCompletionSignatures>{};
     }
 

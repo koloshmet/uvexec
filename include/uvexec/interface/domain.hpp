@@ -78,7 +78,7 @@ struct TSenderPackageBase {
             using TTagInvokedSender = std::invoke_result_t<TTagInvokeWithResult, TTupleOfData>;
             return std::invoke_result_t<stdexec::get_completion_signatures_t, const TTagInvokedSender&, const TEnv&>{};
         } else {
-            return stdexec::make_completion_signatures<TSender, TEnv, TTagStoppedSignatures, TFixedSetValue>{};
+            return stdexec::transform_completion_signatures_of<TSender, TEnv, TTagStoppedSignatures, TFixedSetValue>{};
         }
     }
 

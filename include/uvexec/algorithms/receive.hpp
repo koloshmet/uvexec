@@ -37,7 +37,7 @@ struct TReceiveSender {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TReceiveSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TSender, TEnv,
                 TCancellableAlgorithmCompletionSignatures, TLengthValueCompletionSignatures>{};
     }
 
@@ -64,7 +64,7 @@ struct TReceiveFromSender {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TReceiveFromSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TSender, TEnv,
                 TCancellableAlgorithmCompletionSignatures, TLengthValueCompletionSignatures>{};
     }
 

@@ -28,7 +28,7 @@ class TAsyncValueSender {
             std::invoke_result_t<TFn, NMeta::TFnParameterType<TFn>>>;
 
     using TNoexceptCompletionSignatures = TExceptionCompletionSignatures;
-    
+
 public:
     using sender_concept = stdexec::sender_t;
 
@@ -48,7 +48,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TAsyncValueSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TInSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TInSender, TEnv,
                 TNoexceptCompletionSignatures, TFnCompletionSignatures>{};
     }
 

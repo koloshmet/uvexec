@@ -65,7 +65,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TUponSignalSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TSender, TEnv,
                 TCancellableAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
@@ -103,7 +103,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TUponSignalSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TJustSender<>, TEnv,
+        return stdexec::transform_completion_signatures_of<TJustSender<>, TEnv,
                 TCancellableAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
