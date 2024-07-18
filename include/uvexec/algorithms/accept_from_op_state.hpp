@@ -32,7 +32,12 @@ class TAcceptFromOpState {
     using TSocket = uvexec::socket_type_t<TListener>;
     using TEnv = stdexec::env_of_t<TReceiver>;
     using TAcceptSender = std::invoke_result_t<uvexec::accept_t, TInSender, TListener&, TSocket&>;
-    using TAcceptErrors = stdexec::error_types_of_t<TAcceptSender, TEnv>;
+    template <class... TArgs>
+    using TErrorVariant = std::conditional_t<
+            sizeof...(TArgs) != 0,
+            std::variant<std::decay_t<TArgs>...>,
+            std::variant<std::exception_ptr>>;
+    using TAcceptErrors = stdexec::error_types_of_t<TAcceptSender, TEnv, TErrorVariant>;
     using TAcceptResult = NMeta::TBindFront<
             stdexec::set_stopped_t,
             std::conditional_t<

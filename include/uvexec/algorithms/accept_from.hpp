@@ -49,7 +49,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TAcceptFromSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<
+        return stdexec::transform_completion_signatures_of<
                 std::invoke_result_t<uvexec::accept_t, TInSender, TListener&, TValue&>,
                 TEnv,
                 TExceptionCompletionSignatures,
@@ -97,7 +97,7 @@ public:
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TAcceptFromSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<
+        return stdexec::transform_completion_signatures_of<
                 std::invoke_result_t<uvexec::accept_t, TJustSender<>, TListener&, TValue&>,
                 TEnv,
                 TExceptionCompletionSignatures,

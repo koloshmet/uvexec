@@ -17,6 +17,8 @@
 
 #include "deduce.hpp"
 
+#include <functional>
+
 
 namespace NMeta::NDetail {
 

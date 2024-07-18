@@ -36,7 +36,7 @@ struct TWriteSender {
 
     template <typename TEnv>
     friend auto tag_invoke(stdexec::get_completion_signatures_t, const TWriteSender&, const TEnv&) noexcept {
-        return stdexec::make_completion_signatures<TSender, TEnv,
+        return stdexec::transform_completion_signatures_of<TSender, TEnv,
                 TAlgorithmCompletionSignatures, TVoidValueCompletionSignatures>{};
     }
 
